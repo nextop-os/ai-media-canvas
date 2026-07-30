@@ -14,6 +14,7 @@ import OpenCodeIcon from "@lobehub/icons/es/OpenCode/components/Mono";
 import QoderIcon from "@lobehub/icons/es/Qoder/components/Color";
 import QwenIcon from "@lobehub/icons/es/Qwen/components/Color";
 import type { ComponentType } from "react";
+import { useState } from "react";
 
 import { getLocalCliProviderFallbackMark } from "@/lib/agent-model-groups";
 
@@ -42,6 +43,7 @@ const LOCAL_CLI_PROVIDER_ICONS: Record<string, LocalCliProviderIconComponent> =
 interface LocalCliProviderIconProps {
   className?: string;
   iconSize?: number;
+  iconUrl?: string | undefined;
   label: string;
   provider: string;
 }
@@ -49,10 +51,25 @@ interface LocalCliProviderIconProps {
 export function LocalCliProviderIcon({
   className = "size-9 rounded-lg",
   iconSize = 32,
+  iconUrl,
   label,
   provider,
 }: LocalCliProviderIconProps) {
   const Icon = LOCAL_CLI_PROVIDER_ICONS[provider];
+  const normalizedIconUrl = iconUrl?.trim() ?? "";
+  const [failedHostIconUrl, setFailedHostIconUrl] = useState("");
+
+  if (normalizedIconUrl && failedHostIconUrl !== normalizedIconUrl) {
+    return (
+      <img
+        alt=""
+        aria-hidden="true"
+        className={`object-cover ${className}`}
+        src={normalizedIconUrl}
+        onError={() => setFailedHostIconUrl(normalizedIconUrl)}
+      />
+    );
+  }
 
   if (Icon) {
     return (
