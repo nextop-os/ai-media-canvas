@@ -3,6 +3,7 @@ import type {
   TuttiManagedModel,
   TuttiManagedProviderId,
 } from "@aimc/shared";
+import type { TuttiExternalBridge } from "@tutti-os/workspace-external-core/contracts";
 
 import { fetchTuttiManagedConnection } from "./server-api";
 
@@ -24,6 +25,7 @@ type TuttiAppContext = {
 };
 
 type TuttiBridge = {
+  agentActivity?: Partial<TuttiExternalBridge["agentActivity"]>;
   app?: {
     getContext?: () => Promise<TuttiAppContext | null> | TuttiAppContext | null;
   };

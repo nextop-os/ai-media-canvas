@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type {
   LocalAgentProviderInfo,
+  LocalAgentTargetInfo,
   ModelInfo,
   TuttiManagedConnection,
   WorkspaceSettings,
@@ -31,6 +32,7 @@ import {
   fetchModels,
   fetchTuttiManagedConnection,
 } from "@/lib/server-api";
+import { useTuttiAgentTargetIconUrls } from "@/lib/tutti-agent-target-presentations";
 import {
   hasTuttiManagedCredentialBridge,
   openTuttiAgentManager,
@@ -76,6 +78,7 @@ type ProviderModels = WorkspaceSettings["providerModels"];
 type LocalCliProviderGroup = {
   available: boolean;
   defaultModelId?: string | undefined;
+  iconUrl?: string | undefined;
   provider: string;
   label: string;
   models: ModelInfo[];
@@ -311,18 +314,32 @@ function normalizeAgentSettings(
 }
 
 function groupLocalCliProviders(
+  targets: LocalAgentTargetInfo[],
   providers: LocalAgentProviderInfo[],
+  agentTargetIconUrls: ReadonlyMap<string, string>,
 ): LocalCliProviderGroup[] {
-  return providers.map((provider) => ({
-    available: provider.supported,
-    ...(provider.defaultModelId
-      ? { defaultModelId: provider.defaultModelId }
-      : {}),
-    provider: provider.provider,
-    label: provider.displayName,
-    models: provider.models,
-    ...(provider.reason ? { reason: provider.reason } : {}),
-  }));
+  return providers.map((provider) => {
+    const matchingTargets = targets.filter(
+      (target) => target.providerId === provider.provider,
+    );
+    return {
+      available: provider.supported,
+      ...(provider.defaultModelId
+        ? { defaultModelId: provider.defaultModelId }
+        : {}),
+      ...(matchingTargets.length === 1
+        ? {
+            iconUrl: agentTargetIconUrls.get(
+              matchingTargets[0]?.agentTargetId ?? "",
+            ),
+          }
+        : {}),
+      provider: provider.provider,
+      label: provider.displayName,
+      models: provider.models,
+      ...(provider.reason ? { reason: provider.reason } : {}),
+    };
+  });
 }
 
 function getLocalCliProviderDefaultModel(group: LocalCliProviderGroup) {
@@ -776,6 +793,7 @@ function LocalCliProviderModelPicker({
                   >
                     <LocalCliProviderIcon
                       provider={group.provider}
+                      iconUrl={group.iconUrl}
                       label={group.label}
                       className="size-7 rounded-md"
                       iconSize={24}
@@ -832,10 +850,14 @@ export function AgentSettingsSection({
   surface = "page",
 }: AgentSettingsSectionProps) {
   const { t } = useAppTranslation("settings");
+  const agentTargetIconUrls = useTuttiAgentTargetIconUrls();
   const [settings, setSettings] = useState<WorkspaceSettings>(() =>
     normalizeAgentSettings(initialSettings),
   );
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [localAgentTargets, setLocalAgentTargets] = useState<
+    LocalAgentTargetInfo[]
+  >([]);
   const [localAgentProviders, setLocalAgentProviders] = useState<
     LocalAgentProviderInfo[]
   >([]);
@@ -888,8 +910,20 @@ export function AgentSettingsSection({
       await Promise.allSettled([
         modelRequest.then((response) => {
           setAvailableModels(response.models);
-          setLocalAgentProviders(
-            localAgentProvidersFromModelResponse(response),
+          const providers = localAgentProvidersFromModelResponse(response);
+          setLocalAgentProviders(providers);
+          setLocalAgentTargets(
+            response.localAgentTargets ??
+              providers.map((provider) => ({
+                agentTargetId: `local:${provider.provider}`,
+                providerId: provider.provider,
+                displayName: provider.displayName,
+                available: provider.supported,
+                runtimeSupported: provider.supported,
+                isDefault: false,
+                ...(provider.reason ? { reason: provider.reason } : {}),
+                models: provider.models,
+              })),
           );
         }),
         fetchTuttiManagedConnection().then((connectionResponse) => {
@@ -929,8 +963,13 @@ export function AgentSettingsSection({
     [availableModels],
   );
   const localCliProviderGroups = useMemo(
-    () => groupLocalCliProviders(localAgentProviders),
-    [localAgentProviders],
+    () =>
+      groupLocalCliProviders(
+        localAgentTargets,
+        localAgentProviders,
+        agentTargetIconUrls,
+      ),
+    [agentTargetIconUrls, localAgentProviders, localAgentTargets],
   );
   const localCliProviderCount = localCliProviderGroups.length;
   const selectedLocalProvider = getModelProvider(settings.defaultModel);

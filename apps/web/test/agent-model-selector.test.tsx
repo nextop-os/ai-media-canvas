@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -105,6 +111,10 @@ describe("AgentModelSelector", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    Object.defineProperty(window, "tuttiExternal", {
+      configurable: true,
+      value: undefined,
+    });
   });
 
   it("refreshes models when the picker opens so it reflects the latest provider list", async () => {
@@ -415,6 +425,96 @@ describe("AgentModelSelector", () => {
     expect(modelButton).toBeDisabled();
     await userEvent.click(modelButton);
     expect(setModelMock).not.toHaveBeenCalled();
+  });
+
+  it("renders host icons by exact Agent Target id", async () => {
+    Object.defineProperty(window, "tuttiExternal", {
+      configurable: true,
+      value: {
+        agentActivity: {
+          listTargets: async () => ({
+            agents: [
+              {
+                agentTargetId: "team:alpha",
+                availability: { status: "ready" },
+                description: null,
+                iconUrl: "data:image/webp;base64,alpha",
+                name: "Alpha",
+                provider: "codex",
+              },
+              {
+                agentTargetId: "team:beta",
+                availability: { status: "ready" },
+                description: null,
+                iconUrl: "data:image/webp;base64,beta",
+                name: "Beta",
+                provider: "codex",
+              },
+            ],
+            capturedAtUnixMs: 123,
+            error: null,
+            status: "ready",
+          }),
+        },
+      },
+    });
+    fetchModelsMock.mockResolvedValue({
+      models: [],
+      localAgentProviders: [
+        {
+          provider: "codex",
+          displayName: "Codex",
+          supported: true,
+          authState: "ok",
+          models: [],
+        },
+      ],
+      localAgentTargets: [
+        {
+          agentTargetId: "team:alpha",
+          providerId: "codex",
+          displayName: "Alpha",
+          available: true,
+          runtimeSupported: true,
+          isDefault: true,
+          models: [{ id: "codex:default", name: "Default", provider: "codex" }],
+        },
+        {
+          agentTargetId: "team:beta",
+          providerId: "codex",
+          displayName: "Beta",
+          available: true,
+          runtimeSupported: true,
+          isDefault: false,
+          models: [{ id: "codex:default", name: "Default", provider: "codex" }],
+        },
+      ],
+    });
+
+    render(<AgentModelSelector compact />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Agent/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('img[src="data:image/webp;base64,alpha"]'),
+      ).toBeInTheDocument();
+      expect(
+        document.querySelector('img[src="data:image/webp;base64,beta"]'),
+      ).toBeInTheDocument();
+    });
+
+    const alphaIcon = document.querySelector(
+      'img[src="data:image/webp;base64,alpha"]',
+    );
+    if (!(alphaIcon instanceof HTMLImageElement)) {
+      throw new Error("Alpha Host icon was not rendered.");
+    }
+    fireEvent.error(alphaIcon);
+    expect(
+      document.querySelector('img[src="data:image/webp;base64,alpha"]'),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a degraded discovery reason for a supported local provider", async () => {

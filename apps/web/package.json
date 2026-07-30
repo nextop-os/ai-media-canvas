@@ -9,7 +9,7 @@
     "@excalidraw/excalidraw": "^0.18.0",
     "@lobehub/icons": "^5.10.0",
     "@tutti-os/ui-rich-text": "0.0.137",
-    "@tutti-os/workspace-external-core": "0.0.125",
+    "@tutti-os/workspace-external-core": "0.0.253",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",

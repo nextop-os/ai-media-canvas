@@ -10,6 +10,7 @@ import {
   localAgentProvidersFromModelResponse,
 } from "@/lib/agent-model-groups";
 import { fetchModels, fetchWorkspaceSettings } from "@/lib/server-api";
+import { useTuttiAgentTargetIconUrls } from "@/lib/tutti-agent-target-presentations";
 import { WORKSPACE_SETTINGS_UPDATED_EVENT } from "@/lib/workspace-settings-events";
 import type {
   LocalAgentProviderInfo,
@@ -114,11 +115,18 @@ function getModelProvider(modelId: string | null | undefined) {
   return modelId?.includes(":") ? (modelId.split(":", 1)[0] ?? "") : "";
 }
 
-function ProviderLogo({ provider }: { provider: string }) {
+function ProviderLogo({
+  iconUrl,
+  provider,
+}: {
+  iconUrl?: string | undefined;
+  provider: string;
+}) {
   if (isLocalCliProvider(provider)) {
     return (
       <LocalCliProviderIcon
         provider={provider}
+        iconUrl={iconUrl}
         label={formatLocalCliProviderLabel(provider)}
         className="size-4 rounded-sm"
         iconSize={15}
@@ -158,6 +166,7 @@ export function AgentModelSelector({
 } = {}) {
   const { t } = useAppTranslation("chat");
   const { agentTargetId, model, modelSource, setModel } = useAgentModel();
+  const agentTargetIconUrls = useTuttiAgentTargetIconUrls();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialSourceTab, setSettingsInitialSourceTab] = useState<
@@ -305,6 +314,12 @@ export function AgentModelSelector({
       )?.displayName ??
       null)
     : null;
+  const triggerLocalTarget = localAgentTargets.find(
+    (target) => target.agentTargetId === agentTargetId,
+  );
+  const triggerLocalIconUrl = triggerLocalTarget
+    ? agentTargetIconUrls.get(triggerLocalTarget.agentTargetId)
+    : undefined;
   const isActive = model !== null;
   const isTriggerActive = isActive || Boolean(triggerLocalProvider);
   const displayLabel =
@@ -364,6 +379,7 @@ export function AgentModelSelector({
                 {triggerLocalProvider ? (
                   <LocalCliProviderIcon
                     provider={triggerLocalProvider}
+                    iconUrl={triggerLocalIconUrl}
                     label={triggerLocalProviderLabel ?? displayLabel}
                     className="size-4 rounded-sm"
                     iconSize={15}
@@ -516,7 +532,14 @@ export function AgentModelSelector({
             return (
               <div key={provider} className="mt-2">
                 <div className="flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                  <ProviderLogo provider={runtimeProvider} />
+                  <ProviderLogo
+                    provider={runtimeProvider}
+                    iconUrl={
+                      localTarget
+                        ? agentTargetIconUrls.get(localTarget.agentTargetId)
+                        : undefined
+                    }
+                  />
                   {localTarget
                     ? localTarget.displayName
                     : isLocalCliProvider(runtimeProvider)
