@@ -4,6 +4,7 @@ import type { BrandKitAsset } from "@aimc/shared";
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { cn } from "../../lib/utils";
 import { FontPickerDialog } from "./font-picker-dialog";
 import { InlineInput } from "./inline-input";
@@ -26,6 +27,7 @@ export function FontSection({
   onDeleteFont,
   onUpdateLabel,
 }: FontSectionProps) {
+  const { t } = useAppTranslation("brandKit");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -81,7 +83,7 @@ export function FontSection({
 
   return (
     <section>
-      <SectionHeader title="Fonts" count={fonts.length} />
+      <SectionHeader title={t("sections.fonts")} count={fonts.length} />
       <div className="flex flex-wrap gap-3">
         {fonts.map((font) => (
           <div key={font.id} className="flex flex-col items-center gap-1.5">
@@ -128,7 +130,7 @@ export function FontSection({
               type="button"
               onClick={() => setMenuOpen((prev) => !prev)}
               className="w-[150px] h-[113px] rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-colors cursor-pointer"
-              aria-label="Add font"
+              aria-label={t("actions.addFont")}
             >
               <Plus className="h-5 w-5 text-muted-foreground/60" />
             </button>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { SectionHeader } from "./section-header";
 
 interface GuidanceSectionProps {
@@ -12,6 +13,7 @@ interface GuidanceSectionProps {
 const DEBOUNCE_MS = 1000;
 
 export function GuidanceSection({ value, onSave }: GuidanceSectionProps) {
+  const { t } = useAppTranslation("brandKit");
   const [draft, setDraft] = useState(value ?? "");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,13 +65,13 @@ export function GuidanceSection({ value, onSave }: GuidanceSectionProps) {
 
   return (
     <section>
-      <SectionHeader title="Brand Guidance" />
+      <SectionHeader title={t("sections.brandGuidance")} />
       <textarea
         ref={textareaRef}
         value={draft}
         onChange={handleChange}
         onBlur={handleBlur}
-        placeholder="Describe your brand voice, personality, and style guidelines..."
+        placeholder={t("guidancePlaceholder")}
         rows={3}
         className="w-full resize-none rounded-xl border bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-muted-foreground/60 transition-colors"
       />

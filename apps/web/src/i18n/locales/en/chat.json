@@ -28,6 +28,11 @@
   "assistant": {
     "title": "AI Canvas Assistant"
   },
+  "attachment": {
+    "alt": "Attachment",
+    "remove": "Remove attachment",
+    "retry": "Retry"
+  },
   "capabilityRequired": {
     "configureMedia": "Connect",
     "continueAfterSave": "Media model saved. Send \"Continue\" to retry the generation.",

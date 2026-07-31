@@ -4,6 +4,7 @@ import type { BrandKitAsset } from "@aimc/shared";
 import { Plus, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { cn } from "../../lib/utils";
 import { ColorPickerPopover } from "./color-picker-popover";
 import { InlineInput } from "./inline-input";
@@ -24,6 +25,7 @@ export function ColorSection({
   onDeleteColor,
   onUpdateLabel,
 }: ColorSectionProps) {
+  const { t } = useAppTranslation("brandKit");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<BrandKitAsset | null>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -57,7 +59,7 @@ export function ColorSection({
 
   return (
     <section>
-      <SectionHeader title="Colors" count={colors.length} />
+      <SectionHeader title={t("sections.colors")} count={colors.length} />
       <div className="flex flex-wrap gap-3">
         {colors.map((color) => (
           <div key={color.id} className="flex flex-col items-center gap-1.5">
@@ -115,7 +117,7 @@ export function ColorSection({
               type="button"
               onClick={handleAddClick}
               className="w-[69px] h-[69px] rounded-xl border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-colors cursor-pointer"
-              aria-label="Add color"
+              aria-label={t("actions.addColor")}
             >
               <Plus className="h-5 w-5 text-muted-foreground/60" />
             </button>

@@ -3,6 +3,7 @@
 import type { BrandKitAsset } from "@aimc/shared";
 import { useCallback, useRef } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { AddAssetCard, AssetCard } from "./asset-card";
 import { SectionHeader } from "./section-header";
 
@@ -19,6 +20,7 @@ export function ImageSection({
   onUpdateLabel,
   onUpload,
 }: ImageSectionProps) {
+  const { t } = useAppTranslation("brandKit");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = useCallback(() => {
@@ -38,7 +40,7 @@ export function ImageSection({
 
   return (
     <section>
-      <SectionHeader title="Images" count={images.length} />
+      <SectionHeader title={t("sections.images")} count={images.length} />
       <div className="flex flex-wrap gap-3">
         {images.map((image) => (
           <AssetCard
@@ -48,7 +50,7 @@ export function ImageSection({
             onUpdateLabel={onUpdateLabel}
           />
         ))}
-        <AddAssetCard label="Upload" onClick={handleClick} />
+        <AddAssetCard label={t("actions.upload")} onClick={handleClick} />
         <input
           ref={inputRef}
           type="file"

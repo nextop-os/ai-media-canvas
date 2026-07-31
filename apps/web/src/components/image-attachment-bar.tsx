@@ -1,5 +1,7 @@
 "use client";
 
+import { useAppTranslation } from "@/i18n";
+
 import type { ImageAttachmentState } from "../hooks/use-image-attachments";
 
 type ImageAttachmentBarProps = {
@@ -13,6 +15,7 @@ export function ImageAttachmentBar({
   onRemove,
   onRetry,
 }: ImageAttachmentBarProps) {
+  const { t } = useAppTranslation("chat");
   if (attachments.length === 0) return null;
 
   return (
@@ -23,7 +26,7 @@ export function ImageAttachmentBar({
             {att.preview ? (
               <img
                 src={att.preview}
-                alt="Attachment"
+                alt={t("attachment.alt")}
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -82,7 +85,7 @@ export function ImageAttachmentBar({
                 </svg>
                 {onRetry && att.file && (
                   <span className="text-[9px] font-medium text-red-600">
-                    Retry
+                    {t("attachment.retry")}
                   </span>
                 )}
               </div>
@@ -92,7 +95,7 @@ export function ImageAttachmentBar({
           {/* Remove button */}
           <button
             type="button"
-            aria-label="Remove attachment"
+            aria-label={t("attachment.remove")}
             onClick={() => onRemove(att.id)}
             className="absolute -right-1 -top-1 z-10 hidden h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm group-hover:flex"
           >

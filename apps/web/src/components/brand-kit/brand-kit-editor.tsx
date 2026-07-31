@@ -2,12 +2,13 @@
 
 import type {
   BrandKitAsset,
-  BrandKitDetail,
   BrandKitAssetType,
+  BrandKitDetail,
 } from "@aimc/shared";
 import { Copy, Ellipsis, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { cn } from "../../lib/utils";
 import { ColorSection } from "./color-section";
 import { FontSection } from "./font-section";
@@ -56,6 +57,7 @@ export function BrandKitEditor({
   onDuplicateKit,
   onUploadAsset,
 }: BrandKitEditorProps) {
+  const { t } = useAppTranslation("brandKit");
   const colors = useMemo(() => filterAssets(kit.assets, "color"), [kit.assets]);
   const fonts = useMemo(() => filterAssets(kit.assets, "font"), [kit.assets]);
   const logos = useMemo(() => filterAssets(kit.assets, "logo"), [kit.assets]);
@@ -139,7 +141,7 @@ export function BrandKitEditor({
         <InlineInput
           value={kit.name}
           onCommit={handleNameCommit}
-          placeholder="Kit name"
+          placeholder={t("kitNamePlaceholder")}
           inputClassName="text-2xl font-semibold text-foreground"
         />
 
@@ -170,10 +172,7 @@ export function BrandKitEditor({
           <div className="h-5 w-px bg-border" />
 
           {/* More menu */}
-          <MoreMenu
-            onDuplicate={onDuplicateKit}
-            onDelete={onDeleteKit}
-          />
+          <MoreMenu onDuplicate={onDuplicateKit} onDelete={onDeleteKit} />
         </div>
       </header>
 
@@ -238,6 +237,7 @@ function MoreMenu({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useAppTranslation("brandKit");
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -258,7 +258,7 @@ function MoreMenu({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-        aria-label="More actions"
+        aria-label={t("actions.moreActions")}
       >
         <Ellipsis className="h-5 w-5" />
       </button>

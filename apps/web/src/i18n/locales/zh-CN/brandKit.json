@@ -1,5 +1,21 @@
 {
+  "actions": {
+    "addColor": "添加颜色",
+    "addFont": "添加字体",
+    "moreActions": "更多操作",
+    "upload": "上传"
+  },
+  "colorNamePlaceholder": "颜色名称",
   "empty": "暂无品牌套件",
+  "guidancePlaceholder": "描述你的品牌调性、个性和风格指南...",
+  "kitNamePlaceholder": "套件名称",
+  "sections": {
+    "brandGuidance": "品牌指南",
+    "colors": "颜色",
+    "fonts": "字体",
+    "images": "图片",
+    "logos": "Logo"
+  },
   "selector": {
     "invalid": "品牌套件: 已失效",
     "none": "品牌套件: 无"

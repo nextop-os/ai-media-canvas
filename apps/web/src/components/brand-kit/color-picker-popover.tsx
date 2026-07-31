@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HexColorPicker } from "react-colorful";
 
+import { useAppTranslation } from "@/i18n";
 import { cn } from "../../lib/utils";
 
 interface ColorPickerPopoverProps {
@@ -32,6 +33,7 @@ export function ColorPickerPopover({
   mode,
   anchorRef,
 }: ColorPickerPopoverProps) {
+  const { t } = useAppTranslation("brandKit");
   const [name, setName] = useState(initialName);
   const [hex, setHex] = useState(initialHex);
   const [hexInput, setHexInput] = useState(initialHex.replace("#", ""));
@@ -102,7 +104,7 @@ export function ColorPickerPopover({
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Color name"
+        placeholder={t("colorNamePlaceholder")}
         className="w-full rounded-lg border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-muted-foreground/60"
       />
 

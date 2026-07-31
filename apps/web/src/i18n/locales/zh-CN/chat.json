@@ -28,6 +28,11 @@
   "assistant": {
     "title": "AI Canvas 助手"
   },
+  "attachment": {
+    "alt": "附件",
+    "remove": "移除附件",
+    "retry": "重试"
+  },
   "capabilityRequired": {
     "configureMedia": "去连接",
     "continueAfterSave": "媒体模型已保存，发送“继续”即可重试刚才的生成。",

@@ -1,5 +1,21 @@
 {
+  "actions": {
+    "addColor": "Add color",
+    "addFont": "Add font",
+    "moreActions": "More actions",
+    "upload": "Upload"
+  },
+  "colorNamePlaceholder": "Color name",
   "empty": "No brand kits",
+  "guidancePlaceholder": "Describe your brand voice, personality, and style guidelines...",
+  "kitNamePlaceholder": "Kit name",
+  "sections": {
+    "brandGuidance": "Brand Guidance",
+    "colors": "Colors",
+    "fonts": "Fonts",
+    "images": "Images",
+    "logos": "Logos"
+  },
   "selector": {
     "invalid": "Brand kit: unavailable",
     "none": "Brand kit: none"
