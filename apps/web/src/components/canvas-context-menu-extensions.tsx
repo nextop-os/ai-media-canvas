@@ -716,6 +716,8 @@ export function CanvasContextMenuExtensions({
         });
         if (result === "saved") {
           toastSuccess(t("files.downloadSuccess"));
+        } else if (result === "started") {
+          toastSuccess(t("files.downloadStarted"));
         }
       } catch (error) {
         console.warn("[canvas-context-menu] download image failed:", error);

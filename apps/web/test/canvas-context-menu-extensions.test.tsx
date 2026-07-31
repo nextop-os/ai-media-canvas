@@ -185,6 +185,7 @@ describe("CanvasContextMenuExtensions", () => {
     expect(downloadAnchor?.download).toBe("ai-media-canvas-image-1.png");
     expect(exportToBlobMock).not.toHaveBeenCalled();
     expect(screen.queryByText("下载成功")).not.toBeInTheDocument();
+    expect(await screen.findByText("已开始下载")).toBeInTheDocument();
   });
 
   it("uses the image title as the downloaded filename when available", async () => {

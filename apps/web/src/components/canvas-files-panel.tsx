@@ -199,6 +199,8 @@ export function CanvasFilesPanel({
         });
         if (result === "saved") {
           toastSuccess(t("files.downloadSuccess"));
+        } else if (result === "started") {
+          toastSuccess(t("files.downloadStarted"));
         }
       } catch (error) {
         console.warn("[canvas-files-panel] download failed:", error);

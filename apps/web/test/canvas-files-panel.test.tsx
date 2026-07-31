@@ -88,7 +88,7 @@ describe("CanvasFilesPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("falls back to browser download without claiming completion when the save picker is unavailable", async () => {
+  it("shows a download started toast when falling back to browser download", async () => {
     const user = userEvent.setup();
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
@@ -130,5 +130,6 @@ describe("CanvasFilesPanel", () => {
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Download successful")).not.toBeInTheDocument();
+    expect(await screen.findByText("Download started")).toBeInTheDocument();
   });
 });
