@@ -14,6 +14,16 @@ import {
 
 // ── Types ────────────────────────────────────────────────────
 
+/**
+ * Strip markdown link syntax for use in session titles.
+ * Converts `[@label](mention://...)` → `@label` and `[label](path)` → `label`.
+ */
+export function stripMarkdownForTitle(text: string): string {
+  return text
+    .replace(/\[([^\]]*)\]\(([^)]*)\)/g, "$1")
+    .trim();
+}
+
 export type Message = {
   id: string;
   role: "user" | "assistant";
@@ -346,7 +356,7 @@ export function useChatSessions({
     const isFirstMessage = messagesRef.current.length === 0;
     if (!isFirstMessage) return;
 
-    const normalized = text.trim();
+    const normalized = stripMarkdownForTitle(text);
     if (!normalized) return;
 
     const title =

@@ -14,8 +14,17 @@ import { isImageUrl } from "./utils";
  * shares the same reference — avoids re-creating the components map on
  * every render, which would force ReactMarkdown to remount its tree.
  */
+const MENTION_HREF_PREFIX = /^mention:\/\//i;
+
 const markdownComponents: Components = {
   a({ href, children }) {
+    if (href && MENTION_HREF_PREFIX.test(href)) {
+      return (
+        <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[0.85em] font-medium text-foreground align-baseline">
+          {children}
+        </span>
+      );
+    }
     if (href && isImageUrl(href)) {
       return (
         <ChatImage

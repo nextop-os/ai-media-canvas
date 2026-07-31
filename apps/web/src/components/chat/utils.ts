@@ -33,7 +33,7 @@ const TOOL_CONFIG: Record<string, ToolDisplayConfig> = {
   screenshot_canvas: { label: "\u622a\u53d6\u753b\u5e03", icon: "eye", showCard: true },
   get_brand_kit: { label: "\u54c1\u724c\u5de5\u5177\u5305", icon: "palette", showCard: true },
   project_search: { label: "\u641c\u7d22\u9879\u76ee", icon: "search", showCard: true },
-  task: { label: "\u6267\u884c\u4efb\u52a1", icon: "tool", showCard: false },
+  task: { label: "\u6267\u884c\u4efb\u52a1", icon: "tool", showCard: true },
 };
 
 export function normalizeToolName(toolName: string): string {
