@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import type { ImageArtifact, ToolBlock, VideoArtifact } from "@aimc/shared";
 import { useAppTranslation } from "../../i18n";
 import { toRuntimeAssetUrl } from "../../lib/local-assets";
+import { useToast } from "../toast";
 import { ChatImage } from "./image-lightbox";
 import {
   formatModelDisplayName,
@@ -386,10 +387,7 @@ function getMediaCapabilityRequired(
   if (!raw || typeof raw !== "object") return null;
 
   const capability = (raw as { capability?: unknown }).capability;
-  if (
-    capability !== "image_generation" &&
-    capability !== "video_generation"
-  ) {
+  if (capability !== "image_generation" && capability !== "video_generation") {
     return null;
   }
 
@@ -420,9 +418,7 @@ const MediaCapabilityRequiredCard = React.memo(
             />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">
-              {title}
-            </div>
+            <div className="text-sm font-semibold text-foreground">{title}</div>
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               {description}
             </div>
@@ -550,9 +546,7 @@ const MediaErrorCard = React.memo(function MediaErrorCard({
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-foreground">
-            {title}
-          </div>
+          <div className="text-sm font-semibold text-foreground">{title}</div>
           <div className="mt-0.5 text-[12px] text-muted-foreground line-clamp-2">
             {error}
           </div>
@@ -579,6 +573,8 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
   hasDetails: boolean;
   onOpenPanel: () => void;
 }) {
+  const { t } = useAppTranslation("chat");
+  const toast = useToast();
   const url = toRuntimeAssetUrl(artifact.url, artifact.assetId);
   const handleDownload = useCallback(
     (e: React.MouseEvent) => {
@@ -591,10 +587,14 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
           a.download = artifact.title ?? "generated-image.png";
           a.click();
           URL.revokeObjectURL(a.href);
+          toast.success(t("lightbox.downloadSuccess"));
         })
-        .catch(() => window.open(url, "_blank"));
+        .catch(() => {
+          toast.error(t("lightbox.downloadFailed"));
+          window.open(url, "_blank");
+        });
     },
-    [url, artifact.title],
+    [url, artifact.title, t, toast],
   );
 
   return (
