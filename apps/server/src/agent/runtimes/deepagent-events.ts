@@ -16,6 +16,90 @@ import { sanitizeErrorForClient } from "../../utils/error-sanitizer.js";
 import { createPipelineLogger } from "../../ws/logger.js";
 
 /**
+ * Stateful filter that strips `<reasoning>...</reasoning>` tags from streaming
+ * text deltas. Some models (e.g., minimax-m2.5 via Anthropic relay) emit
+ * reasoning as inline tags rather than structured thinking blocks. This filter
+ * extracts such content and emits it as thinking deltas instead.
+ */
+class ReasoningTagStreamFilter {
+  private buffer = "";
+  private insideReasoning = false;
+
+  /**
+   * Feed a text delta and return the classified output: regular text deltas
+   * and/or thinking deltas extracted from reasoning tags.
+   */
+  feed(delta: string): { text: string; thinking: string } {
+    this.buffer += delta;
+    let textOut = "";
+    let thinkingOut = "";
+
+    while (this.buffer.length > 0) {
+      if (this.insideReasoning) {
+        const closeIdx = this.buffer.indexOf("</reasoning>");
+        if (closeIdx === -1) {
+          // Might be a partial closing tag at the buffer end
+          const partialClose = this.buffer.lastIndexOf("<");
+          if (partialClose >= 0 && this.buffer.length - partialClose <= 12) {
+            // Keep partial closing tag in buffer
+            thinkingOut += this.buffer.slice(0, partialClose);
+            this.buffer = this.buffer.slice(partialClose);
+            break;
+          }
+          thinkingOut += this.buffer;
+          this.buffer = "";
+          break;
+        }
+        thinkingOut += this.buffer.slice(0, closeIdx);
+        this.buffer = this.buffer.slice(closeIdx + "</reasoning>".length);
+        this.insideReasoning = false;
+      } else {
+        const openIdx = this.buffer.indexOf("<reasoning>");
+        if (openIdx === -1) {
+          // Check for partial opening tag at the end
+          const partialOpen = this.findPartialTagStart(this.buffer);
+          if (partialOpen > 0) {
+            textOut += this.buffer.slice(0, partialOpen);
+            this.buffer = this.buffer.slice(partialOpen);
+            break;
+          }
+          textOut += this.buffer;
+          this.buffer = "";
+          break;
+        }
+        if (openIdx > 0) {
+          textOut += this.buffer.slice(0, openIdx);
+        }
+        this.buffer = this.buffer.slice(openIdx + "<reasoning>".length);
+        this.insideReasoning = true;
+      }
+    }
+
+    return { text: textOut, thinking: thinkingOut };
+  }
+
+  flush(): { text: string; thinking: string } {
+    const remaining = this.buffer;
+    this.buffer = "";
+    if (this.insideReasoning) {
+      this.insideReasoning = false;
+      return { text: "", thinking: remaining };
+    }
+    return { text: remaining, thinking: "" };
+  }
+
+  private findPartialTagStart(text: string): number {
+    const tag = "<reasoning>";
+    for (let i = 1; i < tag.length && i < text.length; i++) {
+      if (text.endsWith(tag.slice(0, i))) {
+        return text.length - i;
+      }
+    }
+    return -1;
+  }
+}
+
+/**
  * Shape of a LangChain v2 stream event from `streamEvents()`.
  */
 type LangChainStreamEvent = {
@@ -65,6 +149,8 @@ export async function* adaptDeepAgentStream(
   let consecutiveCanvasLayoutFailures = 0;
   /** Tracks active sub-agent parent runs so we can detect nested inner tools. */
   const activeSubAgentRuns = new Set<string>();
+  /** Per-message reasoning tag filters for models that emit inline <reasoning> tags. */
+  const reasoningFilters = new Map<string, ReasoningTagStreamFilter>();
   const log = createPipelineLogger("deepagent.events", {
     runId: options.runId,
     sessionId: options.sessionId,
@@ -164,13 +250,27 @@ export async function* adaptDeepAgentStream(
         if (!delta) continue;
 
         seenStreamedMessageIds.add(messageId);
-        yield {
-          delta,
-          messageId,
-          runId: options.runId,
-          timestamp: now(),
-          type: "message.delta",
-        };
+        const filter = reasoningFilters.get(messageId) ?? new ReasoningTagStreamFilter();
+        reasoningFilters.set(messageId, filter);
+        const { text: textDelta, thinking: thinkingDelta } = filter.feed(delta);
+        if (thinkingDelta) {
+          yield {
+            delta: thinkingDelta,
+            runId: options.runId,
+            messageId,
+            timestamp: now(),
+            type: "thinking.delta" as const,
+          };
+        }
+        if (textDelta) {
+          yield {
+            delta: textDelta,
+            messageId,
+            runId: options.runId,
+            timestamp: now(),
+            type: "message.delta",
+          };
+        }
         continue;
       }
 
@@ -193,13 +293,28 @@ export async function* adaptDeepAgentStream(
           const delta = extractChunkText(msg);
           if (!delta) continue;
 
-          yield {
-            delta,
-            messageId,
-            runId: options.runId,
-            timestamp: now(),
-            type: "message.delta",
-          };
+          const filter = new ReasoningTagStreamFilter();
+          const { text: textDelta, thinking: thinkingDelta } = filter.feed(delta);
+          const flushed = filter.flush();
+          if (thinkingDelta || flushed.thinking) {
+            yield {
+              delta: thinkingDelta + flushed.thinking,
+              runId: options.runId,
+              messageId,
+              timestamp: now(),
+              type: "thinking.delta" as const,
+            };
+          }
+          const fullText = textDelta + flushed.text;
+          if (fullText) {
+            yield {
+              delta: fullText,
+              messageId,
+              runId: options.runId,
+              timestamp: now(),
+              type: "message.delta",
+            };
+          }
         }
         continue;
       }
