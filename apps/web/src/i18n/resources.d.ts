@@ -233,6 +233,10 @@ export default interface Resources {
       "zoomIn": "放大 (+)",
       "zoomOut": "缩小 (-)"
     },
+    "markdown": {
+      "codeCopied": "已复制",
+      "copyCode": "复制代码"
+    },
     "media": {
       "generationCanceled": "已取消",
       "imageGenerating": "图片生成中...",

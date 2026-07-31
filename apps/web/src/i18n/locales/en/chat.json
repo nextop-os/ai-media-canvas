@@ -72,6 +72,10 @@
     "zoomIn": "Zoom in (+)",
     "zoomOut": "Zoom out (-)"
   },
+  "markdown": {
+    "codeCopied": "Copied",
+    "copyCode": "Copy code"
+  },
   "media": {
     "generationCanceled": "Canceled",
     "imageGenerating": "Generating image...",
