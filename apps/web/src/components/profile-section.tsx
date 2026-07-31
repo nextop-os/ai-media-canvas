@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -15,11 +16,12 @@ export function ProfileSection({
   displayName: initialName,
   onSave,
 }: ProfileSectionProps) {
+  const { t } = useAppTranslation("settings");
   const [displayName, setDisplayName] = useState(initialName);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
-      message: string;
+    message: string;
   } | null>(null);
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function ProfileSection({
     if (!trimmedDisplayName) {
       setFeedback({
         type: "error",
-        message: "Display Name 不能为空。",
+        message: t("profile.displayNameEmpty"),
       });
       return;
     }
@@ -45,11 +47,11 @@ export function ProfileSection({
 
     try {
       await onSave(trimmedDisplayName);
-      setFeedback({ type: "success", message: "Local settings updated." });
+      setFeedback({ type: "success", message: t("profile.feedback.updated") });
     } catch {
       setFeedback({
         type: "error",
-        message: "Failed to update local settings. Please try again.",
+        message: t("profile.feedback.updateFailed"),
       });
     } finally {
       setSaving(false);
@@ -59,29 +61,30 @@ export function ProfileSection({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="mb-1 text-lg font-semibold">General</h2>
+        <h2 className="mb-1 text-lg font-semibold">{t("profile.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Manage the local profile details stored on this machine.
+          {t("profile.description")}
         </p>
       </div>
 
       <div className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-4">
-          <h3 className="text-base font-semibold">Profile</h3>
+          <h3 className="text-base font-semibold">
+            {t("profile.profileTitle")}
+          </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            This name is reused across the local workspace and generated
-            project metadata.
+            {t("profile.profileDescription")}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="max-w-md space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="displayName">Display Name</Label>
+            <Label htmlFor="displayName">{t("profile.displayName")}</Label>
             <Input
               id="displayName"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t("profile.displayNamePlaceholder")}
             />
           </div>
 
@@ -94,7 +97,7 @@ export function ProfileSection({
           )}
 
           <Button type="submit" disabled={saving || !canSubmit} size="sm">
-            {saving ? "Saving..." : "Save"}
+            {saving ? t("profile.saving") : t("profile.save")}
           </Button>
         </form>
       </div>

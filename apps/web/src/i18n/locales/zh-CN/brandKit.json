@@ -1,5 +1,16 @@
 {
+  "actions": {
+    "addColor": "添加颜色",
+    "addFont": "添加字体",
+    "delete": "删除",
+    "duplicate": "复制",
+    "moreActions": "更多操作",
+    "upload": "上传"
+  },
+  "applyToNewProjects": "应用到新项目",
   "empty": "暂无品牌套件",
+  "extractFromUrl": "从 URL 提取",
+  "kitNamePlaceholder": "套件名称",
   "selector": {
     "invalid": "品牌套件: 已失效",
     "none": "品牌套件: 无"

@@ -1,5 +1,16 @@
 {
+  "actions": {
+    "addColor": "Add color",
+    "addFont": "Add font",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "moreActions": "More actions",
+    "upload": "Upload"
+  },
+  "applyToNewProjects": "Apply to new projects",
   "empty": "No brand kits",
+  "extractFromUrl": "Extract from URL",
+  "kitNamePlaceholder": "Kit name",
   "selector": {
     "invalid": "Brand kit: unavailable",
     "none": "Brand kit: none"

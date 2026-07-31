@@ -2,12 +2,13 @@
 
 import type {
   BrandKitAsset,
-  BrandKitDetail,
   BrandKitAssetType,
+  BrandKitDetail,
 } from "@aimc/shared";
 import { Copy, Ellipsis, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useAppTranslation } from "@/i18n";
 import { cn } from "../../lib/utils";
 import { ColorSection } from "./color-section";
 import { FontSection } from "./font-section";
@@ -56,6 +57,7 @@ export function BrandKitEditor({
   onDuplicateKit,
   onUploadAsset,
 }: BrandKitEditorProps) {
+  const { t } = useAppTranslation("brandKit");
   const colors = useMemo(() => filterAssets(kit.assets, "color"), [kit.assets]);
   const fonts = useMemo(() => filterAssets(kit.assets, "font"), [kit.assets]);
   const logos = useMemo(() => filterAssets(kit.assets, "logo"), [kit.assets]);
@@ -139,14 +141,14 @@ export function BrandKitEditor({
         <InlineInput
           value={kit.name}
           onCommit={handleNameCommit}
-          placeholder="Kit name"
+          placeholder={t("kitNamePlaceholder")}
           inputClassName="text-2xl font-semibold text-foreground"
         />
 
         <div className="flex items-center gap-3 shrink-0 ml-4">
           {/* Apply to new projects toggle */}
           <span className="text-sm text-muted-foreground whitespace-nowrap">
-            应用到新项目
+            {t("applyToNewProjects")}
           </span>
           <button
             type="button"
@@ -170,10 +172,7 @@ export function BrandKitEditor({
           <div className="h-5 w-px bg-border" />
 
           {/* More menu */}
-          <MoreMenu
-            onDuplicate={onDuplicateKit}
-            onDelete={onDeleteKit}
-          />
+          <MoreMenu onDuplicate={onDuplicateKit} onDelete={onDeleteKit} />
         </div>
       </header>
 
@@ -187,7 +186,7 @@ export function BrandKitEditor({
             className="inline-flex items-center gap-2 self-start rounded-xl border border-dashed px-4 py-2.5 text-sm text-muted-foreground opacity-50 cursor-not-allowed"
           >
             <Sparkles className="h-4 w-4" />
-            Extract from URL
+            {t("extractFromUrl")}
           </button>
 
           <GuidanceSection
@@ -238,6 +237,7 @@ function MoreMenu({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useAppTranslation("brandKit");
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -258,7 +258,7 @@ function MoreMenu({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-        aria-label="More actions"
+        aria-label={t("actions.moreActions")}
       >
         <Ellipsis className="h-5 w-5" />
       </button>
@@ -274,7 +274,7 @@ function MoreMenu({
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Copy className="h-4 w-4 text-muted-foreground" />
-            复制
+            {t("actions.duplicate")}
           </button>
           <button
             type="button"
@@ -285,7 +285,7 @@ function MoreMenu({
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="h-4 w-4" />
-            删除
+            {t("actions.delete")}
           </button>
         </div>
       )}
