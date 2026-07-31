@@ -51,4 +51,27 @@ describe("rich text mention layout", () => {
     expect(selectedRule).toContain("background: transparent");
     expect(selectedRule).toContain("box-shadow: none");
   });
+
+  it("maps the host theme directly onto the shared mention palette", () => {
+    const menuRule = cssRule(
+      ".tutti-rich-text-at-menu:has(.rich-text-at-mention-palette)",
+    );
+    const paletteRule = cssRule(
+      ".tutti-rich-text-at-menu:has(.rich-text-at-mention-palette)\n  .rich-text-at-mention-palette",
+    );
+
+    expect(menuRule).not.toContain("--rich-text-at-mention-text-secondary");
+    expect(paletteRule).toContain(
+      "--rich-text-at-mention-text-secondary: var(--muted-foreground)",
+    );
+    expect(paletteRule).toContain(
+      "--rich-text-at-mention-text-tertiary: color-mix(",
+    );
+    expect(paletteRule).toContain("--background-fronted: var(--popover)");
+    expect(paletteRule).toContain("--text-secondary: var(--muted-foreground)");
+    expect(paletteRule).toContain("--state-danger: var(--destructive)");
+    expect(paletteRule).toContain("--state-success: var(--success)");
+    expect(paletteRule).toContain("--state-warning: var(--warning)");
+    expect(paletteRule).toContain("--status-running: var(--info)");
+  });
 });
