@@ -68,6 +68,13 @@ async function fetchImageBlob(src: string) {
   return await response.blob();
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
 async function convertBlobToPng(blob: Blob) {
   if (blob.type === "image/png") return blob;
 
@@ -197,10 +204,16 @@ export function ImageLightbox({
 
   const overlayRef = useRef<HTMLDialogElement>(null);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — only fire when the user isn't typing in an input,
+  // textarea, or contenteditable element. Otherwise typing "r" in the chat
+  // input would rotate the image instead of inserting the letter.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (isEditableTarget(e.target)) return;
       if (e.key === "+" || e.key === "=") handleZoomIn();
       if (e.key === "-") handleZoomOut();
       if (e.key === "r") handleRotateCW();
