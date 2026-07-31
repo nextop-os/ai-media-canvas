@@ -169,6 +169,7 @@ export function ImageLightbox({
       a.download = normalizeImageFilename(alt);
       a.click();
       URL.revokeObjectURL(url);
+      toast.success(t("lightbox.downloadSuccess"));
     } catch {
       toast.error(t("lightbox.downloadFailed"));
       window.open(src, "_blank");

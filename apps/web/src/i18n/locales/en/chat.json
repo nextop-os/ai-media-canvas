@@ -63,6 +63,7 @@
     "copyImageSuccess": "Image copied",
     "downloadFailed": "Image download failed",
     "downloadImage": "Download image",
+    "downloadSuccess": "Image downloaded",
     "flipHorizontal": "Flip horizontally",
     "flipVertical": "Flip vertically",
     "imageFailedToLoad": "Image failed to load",

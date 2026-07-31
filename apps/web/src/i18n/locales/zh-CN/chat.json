@@ -63,6 +63,7 @@
     "copyImageSuccess": "图片已复制",
     "downloadFailed": "图片下载失败",
     "downloadImage": "下载图片",
+    "downloadSuccess": "图片已下载",
     "flipHorizontal": "左右翻转",
     "flipVertical": "上下翻转",
     "imageFailedToLoad": "图片加载失败",
