@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { BrandKitSummary } from "@aimc/shared";
+import { useAppTranslation } from "@/i18n";
 import { fetchBrandKits } from "@/lib/brand-kit-api";
 import { updateProject } from "@/lib/server-api";
+import type { BrandKitSummary } from "@aimc/shared";
 
 interface BrandKitSelectorProps {
   projectId: string;
@@ -18,6 +19,7 @@ export function BrandKitSelector({
   currentBrandKitId,
   onBrandKitChange,
 }: BrandKitSelectorProps) {
+  const { t } = useAppTranslation("brandKit");
   const [kits, setKits] = useState<BrandKitSummary[]>([]);
   const [open, setOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -57,8 +59,8 @@ export function BrandKitSelector({
   const label = currentKit
     ? currentKit.name
     : currentBrandKitId
-      ? "品牌套件: 已失效"
-      : "品牌套件: 无";
+      ? t("selector.invalid")
+      : t("selector.none");
 
   const handleSelect = useCallback(
     async (kitId: string | null) => {
@@ -103,11 +105,9 @@ export function BrandKitSelector({
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer"
           >
             <span className="h-4 w-4 shrink-0">
-              {currentBrandKitId === null && (
-                <Check className="h-4 w-4" />
-              )}
+              {currentBrandKitId === null && <Check className="h-4 w-4" />}
             </span>
-            <span>无</span>
+            <span>{t("none")}</span>
           </button>
 
           {/* Kit list */}
@@ -119,9 +119,7 @@ export function BrandKitSelector({
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer"
             >
               <span className="h-4 w-4 shrink-0">
-                {kit.id === currentBrandKitId && (
-                  <Check className="h-4 w-4" />
-                )}
+                {kit.id === currentBrandKitId && <Check className="h-4 w-4" />}
               </span>
               <span className="truncate">{kit.name}</span>
             </button>
@@ -129,7 +127,7 @@ export function BrandKitSelector({
 
           {kits.length === 0 && (
             <p className="px-3 py-2 text-sm text-muted-foreground">
-              暂无品牌套件
+              {t("empty")}
             </p>
           )}
         </div>

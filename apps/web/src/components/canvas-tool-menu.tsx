@@ -445,6 +445,7 @@ const GeneratorErrorOverlay = memo(function GeneratorErrorOverlay({
   zoom,
   errorMessage,
 }: GeneratorOverlayItem) {
+  const { t } = useAppTranslation("canvas");
   const contentScale = Math.min(1, Math.max(0.25, zoom));
   const showIcon = screenH >= 48 && screenW >= 72;
   const borderRadius = getGeneratorOverlayRadius(screenW, screenH);
@@ -479,7 +480,7 @@ const GeneratorErrorOverlay = memo(function GeneratorErrorOverlay({
           <span
             className={`${showIcon ? "mt-2" : "mt-0"} whitespace-nowrap rounded-full bg-background/85 px-2.5 py-1 text-[11px] font-medium text-destructive shadow-sm`}
           >
-            {errorMessage || "生成失败"}
+            {errorMessage || t("tools.generateFailed")}
           </span>
         </div>
       </div>

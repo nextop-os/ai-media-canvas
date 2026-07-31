@@ -2,6 +2,7 @@
 export default interface Resources {
   "brandKit": {
     "empty": "暂无品牌套件",
+    "none": "无",
     "selector": {
       "invalid": "品牌套件: 已失效",
       "none": "品牌套件: 无"
