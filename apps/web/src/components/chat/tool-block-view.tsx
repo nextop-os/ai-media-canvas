@@ -602,12 +602,15 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
       className="group cursor-pointer rounded-xl border-[0.5px] border-border overflow-hidden transition-shadow hover:shadow-md"
       onClick={onOpenPanel}
     >
-      {/* Image preview */}
-      <div className="relative aspect-square max-h-[280px] w-full overflow-hidden bg-muted">
+      {/* Image preview -- use artifact's aspect ratio to match canvas */}
+      <div
+        className="relative max-h-[280px] w-full overflow-hidden bg-muted"
+        style={{ aspectRatio: `${artifact.width} / ${artifact.height}` }}
+      >
         <img
           src={url}
           alt={artifact.title ?? "Generated image"}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.03]"
           loading="lazy"
         />
         {/* Gradient overlay with download button */}
