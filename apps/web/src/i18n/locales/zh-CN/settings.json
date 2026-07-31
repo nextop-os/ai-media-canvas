@@ -206,6 +206,21 @@
       "video": "视频模型"
     }
   },
+  "profile": {
+    "description": "管理存储在本机的本地个人资料。",
+    "displayName": "显示名称",
+    "displayNameEmpty": "显示名称不能为空。",
+    "displayNamePlaceholder": "你的名字",
+    "feedback": {
+      "updated": "本地设置已更新。",
+      "updateFailed": "更新本地设置失败，请重试。"
+    },
+    "profileDescription": "此名称会在本地工作空间和生成的项目元数据中复用。",
+    "profileTitle": "个人资料",
+    "save": "保存",
+    "saving": "保存中...",
+    "title": "通用"
+  },
   "status": {
     "loadFailed": "本地设置加载失败，请重试。",
     "loadUnavailable": "当前无法加载本地设置。",

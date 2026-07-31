@@ -206,6 +206,21 @@
       "video": "video model"
     }
   },
+  "profile": {
+    "description": "Manage the local profile details stored on this machine.",
+    "displayName": "Display Name",
+    "displayNameEmpty": "Display Name cannot be empty.",
+    "displayNamePlaceholder": "Your name",
+    "feedback": {
+      "updated": "Local settings updated.",
+      "updateFailed": "Failed to update local settings. Please try again."
+    },
+    "profileDescription": "This name is reused across the local workspace and generated project metadata.",
+    "profileTitle": "Profile",
+    "save": "Save",
+    "saving": "Saving...",
+    "title": "General"
+  },
   "status": {
     "loadFailed": "Failed to load local settings. Please try again.",
     "loadUnavailable": "Unable to load local settings right now.",
