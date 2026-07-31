@@ -351,6 +351,14 @@
   padding: 0;
   background: var(--popover);
   color: var(--popover-foreground);
+}
+
+.tutti-rich-text-at-menu:has(.rich-text-at-mention-palette)
+  .rich-text-at-mention-palette {
+  width: 100%;
+
+  /* Host theme adapter for the shared mention palette. Keep these variables
+     on the palette itself because the package defines its defaults there. */
   --rich-text-at-mention-bg: var(--popover);
   --rich-text-at-mention-text-primary: var(--popover-foreground);
   --rich-text-at-mention-text-secondary: var(--muted-foreground);
@@ -372,11 +380,71 @@
     transparent
   );
   --rich-text-at-mention-accent: var(--primary);
-}
+  --rich-text-at-mention-danger-bg: color-mix(
+    in srgb,
+    var(--destructive) 12%,
+    transparent
+  );
+  --rich-text-at-mention-danger-fg: var(--destructive);
+  --rich-text-at-mention-success-bg: color-mix(
+    in srgb,
+    var(--success) 12%,
+    transparent
+  );
+  --rich-text-at-mention-success-fg: var(--success);
+  --rich-text-at-mention-warning-bg: color-mix(
+    in srgb,
+    var(--warning) 12%,
+    transparent
+  );
+  --rich-text-at-mention-warning-fg: var(--warning);
+  --rich-text-at-mention-info-bg: color-mix(
+    in srgb,
+    var(--info) 12%,
+    transparent
+  );
+  --rich-text-at-mention-info-fg: var(--info);
 
-.tutti-rich-text-at-menu:has(.rich-text-at-mention-palette)
-  .rich-text-at-mention-palette {
-  width: 100%;
+  /* Compatibility tokens still read directly by parts of the shared CSS. */
+  --background-fronted: var(--popover);
+  --background-panel: var(--popover);
+  --panel: var(--popover);
+  --text: var(--popover-foreground);
+  --text-primary: var(--popover-foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-tertiary: color-mix(
+    in srgb,
+    var(--muted-foreground) 78%,
+    transparent
+  );
+  --line-1: var(--border);
+  --line-2: color-mix(in srgb, var(--border) 72%, transparent);
+  --tutti-line-2: var(--line-2);
+  --transparency-block: color-mix(
+    in srgb,
+    var(--popover-foreground) 8%,
+    transparent
+  );
+  --transparency-hover: color-mix(
+    in srgb,
+    var(--popover-foreground) 14%,
+    transparent
+  );
+  --transparency-active: color-mix(
+    in srgb,
+    var(--popover-foreground) 18%,
+    transparent
+  );
+  --tutti-purple: var(--primary);
+  --on-danger: var(--rich-text-at-mention-danger-bg);
+  --state-danger: var(--destructive);
+  --state-success: var(--success);
+  --state-warning: var(--warning);
+  --status-running: var(--info);
+  --bg-block: var(--muted);
+  --block: var(--muted);
+  --folder: var(--info);
+  --workspace-app-icon-bg: var(--muted);
 }
 
 .tutti-rich-text-at-menu::-webkit-scrollbar {
