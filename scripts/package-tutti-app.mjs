@@ -1030,9 +1030,21 @@ async function readSourceManifest() {
   );
 }
 
+function resolveBuildCommand(command, args) {
+  if (process.platform !== "win32" || command !== "pnpm") {
+    return { command, args };
+  }
+  const pnpmCli = process.env.npm_execpath?.trim();
+  if (!pnpmCli) {
+    throw new Error("npm_execpath is required to run pnpm on Windows");
+  }
+  return { command: process.execPath, args: [pnpmCli, ...args] };
+}
+
 async function run(command, args, options = {}) {
   await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const resolved = resolveBuildCommand(command, args);
+    const child = spawn(resolved.command, resolved.args, {
       cwd: rootDir,
       stdio: "inherit",
       shell: false,
@@ -1053,7 +1065,8 @@ async function run(command, args, options = {}) {
 
 async function runCapture(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const resolved = resolveBuildCommand(command, args);
+    const child = spawn(resolved.command, resolved.args, {
       cwd: rootDir,
       shell: false,
       ...options,

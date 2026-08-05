@@ -207,10 +207,13 @@ describe("CodexImagegenProvider", () => {
 
   it("returns as soon as a complete generated PNG appears", async () => {
     const sourceHome = await createCodexImagegenHomeFixture();
-    const fakeCodexPath = join(sourceHome, "fake-codex");
+    const fakeCodexScript = join(sourceHome, "fake-codex.js");
+    const fakeCodexPath = process.platform === "win32"
+      ? join(sourceHome, "fake-codex.cmd")
+      : join(sourceHome, "fake-codex");
     const pngHex = createPngBuffer(640, 480).toString("hex");
     await writeFile(
-      fakeCodexPath,
+      fakeCodexScript,
       [
         "#!/usr/bin/env node",
         'const fs = require("node:fs");',
@@ -222,7 +225,16 @@ describe("CodexImagegenProvider", () => {
       ].join("\n"),
       "utf8",
     );
-    await chmod(fakeCodexPath, 0o755);
+    if (process.platform === "win32") {
+      await writeFile(
+        fakeCodexPath,
+        `@echo off\r\n"${process.execPath}" "${fakeCodexScript}" %*\r\n`,
+        "utf8",
+      );
+    } else {
+      await writeFile(fakeCodexPath, await readFile(fakeCodexScript));
+      await chmod(fakeCodexPath, 0o755);
+    }
     const provider = new CodexImagegenProvider({
       codexHome: sourceHome,
       codexPath: fakeCodexPath,

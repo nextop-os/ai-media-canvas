@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { resolveWindowsBatchCommand } from "@tutti-os/agent-acp-kit";
 import type { Dirent } from "node:fs";
 import {
   copyFile,
@@ -518,10 +519,19 @@ export function parsePngDimensions(buffer: Buffer) {
 
 function defaultExecCodex(command: string): CodexImagegenExec {
   return async (args, options) => {
-    const child = spawn(command, [...args], {
+    const batchExec = resolveWindowsBatchCommand(
+      command,
+      args,
+      process.platform,
+      { env: options.env },
+    );
+    const child = spawn(batchExec?.command ?? command, batchExec?.args ?? [...args], {
       cwd: options.cwd,
-      env: options.env,
+      env: batchExec?.env ? { ...options.env, ...batchExec.env } : options.env,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(batchExec?.windowsVerbatimArguments
+        ? { windowsVerbatimArguments: true }
+        : {}),
     });
     let stdout = "";
     let stderr = "";

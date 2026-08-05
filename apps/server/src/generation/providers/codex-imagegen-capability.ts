@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { resolveWindowsBatchCommand } from "@tutti-os/agent-acp-kit";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -249,12 +250,25 @@ function defaultRunCommand(
   args: readonly string[],
   options: { timeoutMs: number; env: NodeJS.ProcessEnv },
 ) {
-  return execFileSync(command, [...args], {
-    encoding: "utf8",
-    env: options.env,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: options.timeoutMs,
-  });
+  const batchExec = resolveWindowsBatchCommand(
+    command,
+    args,
+    process.platform,
+    { env: options.env },
+  );
+  return execFileSync(
+    batchExec?.command ?? command,
+    batchExec?.args ?? [...args],
+    {
+      encoding: "utf8",
+      env: batchExec?.env ? { ...options.env, ...batchExec.env } : options.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: options.timeoutMs,
+      ...(batchExec?.windowsVerbatimArguments
+        ? { windowsVerbatimArguments: true }
+        : {}),
+    },
+  );
 }
 
 export function parseCodexVersion(output: string): string | undefined {

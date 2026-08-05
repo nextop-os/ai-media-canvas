@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { join } from "node:path";
 
 import {
   type CodexImagegenCommandRunner,
@@ -75,12 +76,13 @@ describe("detectCodexImagegenCapability", () => {
   });
 
   it("reports ready when all probes pass", () => {
+    const codexHome = join("tmp", "codex-home");
     const capability = detectCodexImagegenCapability({
       enabled: true,
       cacheTtlMs: 0,
-      codexHome: "/tmp/codex-home",
+      codexHome,
       runCommand: createReadyRunner(),
-      fileExists: (path) => path === "/tmp/codex-home/auth.json",
+      fileExists: (path) => path === join(codexHome, "auth.json"),
       readFile: () =>
         JSON.stringify({ tokens: { access_token: "access-token" } }),
     });
@@ -89,7 +91,7 @@ describe("detectCodexImagegenCapability", () => {
       ready: true,
       reasons: [],
       codexVersion: "0.124.0",
-      codexHome: "/tmp/codex-home",
+      codexHome,
     });
   });
 
