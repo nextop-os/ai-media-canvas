@@ -50,7 +50,7 @@ describe("tsh-workspace", () => {
 
   it("rejects paths outside /workspace", () => {
     expect(() => assertAllowedTshParentPath("/tmp/evil")).toThrow(
-      `inside ${resolve("/workspace")}`,
+      "inside /workspace",
     );
     expect(() => assertAllowedTshParentPath("/workspace/.tsh/x")).toThrow(
       /\.tsh/,

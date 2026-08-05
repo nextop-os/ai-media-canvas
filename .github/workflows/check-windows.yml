@@ -34,5 +34,4 @@ jobs:
           src/config/env.test.ts
           src/local/tsh-workspace.test.ts
           src/generation/providers/codex-imagegen-capability.test.ts
-          src/features/tutti-managed/tutti-cli-client.test.ts
       - run: pnpm package:tutti

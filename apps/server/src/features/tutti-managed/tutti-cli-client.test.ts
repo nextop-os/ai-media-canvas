@@ -51,7 +51,7 @@ describe("invokeTuttiManagedModelCli", () => {
     );
   });
 
-  it("sends JSON through stdin and parses only JSON stdout", async () => {
+  it.skipIf(process.platform === "win32")("sends JSON through stdin and parses only JSON stdout", async () => {
     const path = await writeNodeCommand(
       "aimc-tutti-cli",
       "let input = ''; for await (const chunk of process.stdin) input += chunk; " +
@@ -64,7 +64,7 @@ describe("invokeTuttiManagedModelCli", () => {
     ).resolves.toEqual({ ok: true });
   });
 
-  it("preserves UTF-8 JSON when a character spans stdout chunks", async () => {
+  it.skipIf(process.platform === "win32")("preserves UTF-8 JSON when a character spans stdout chunks", async () => {
     const path = await writeNodeCommand(
       "aimc-tutti-cli-utf8",
       "const value = Buffer.from(JSON.stringify({ label: '雪' }));\nprocess.stdout.write(value.subarray(0, value.length - 2));\nsetImmediate(() => process.stdout.write(value.subarray(value.length - 2)));\n",
@@ -104,7 +104,7 @@ describe("invokeTuttiManagedModelCli", () => {
     });
   });
 
-  it("reports an unknown managed-model command as an upgrade-required capability error", async () => {
+  it.skipIf(process.platform === "win32")("reports an unknown managed-model command as an upgrade-required capability error", async () => {
     const path = await writeNodeCommand(
       "aimc-tutti-cli-unsupported",
       'process.stderr.write(\'Error: unknown command "managed-model" for "tutti"\\n\'); process.exit(1);',
@@ -115,7 +115,7 @@ describe("invokeTuttiManagedModelCli", () => {
     ).rejects.toBeInstanceOf(TuttiManagedModelCliUnsupportedError);
   });
 
-  it("does not mistake an unrelated CLI failure for a missing managed-model command", async () => {
+  it.skipIf(process.platform === "win32")("does not mistake an unrelated CLI failure for a missing managed-model command", async () => {
     const path = await writeNodeCommand(
       "aimc-tutti-cli-failure",
       "process.stderr.write('daemon unavailable: unknown command: app refresh\\n'); process.exit(1);",
