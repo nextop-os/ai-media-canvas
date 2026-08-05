@@ -33,5 +33,7 @@ jobs:
           pnpm --filter @aimc/server exec vitest run
           src/config/env.test.ts
           src/local/tsh-workspace.test.ts
+          src/agent/agent-targets.test.ts
           src/generation/providers/codex-imagegen-capability.test.ts
+          src/generation/providers/codex-imagegen.test.ts
       - run: pnpm package:tutti
