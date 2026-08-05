@@ -333,6 +333,27 @@
   font-weight: 650;
 }
 
+/* Workspace reference actions render through a body-level portal, so they do
+   not inherit the mention palette's compatibility tokens below. Keep this
+   adapter scoped to the shared menu surface to match AI Canvas popovers
+   without importing the UI System's global theme. */
+.t-dropdown[data-slot="dropdown-menu-content"] {
+  --background-fronted: var(--popover);
+  --border-1: transparent;
+  --shadow-panel: 0 8px 30px rgb(0 0 0 / 8%);
+  --text-primary: var(--popover-foreground);
+  --transparency-hover: color-mix(
+    in srgb,
+    var(--popover-foreground) 6%,
+    transparent
+  );
+  --z-popover: 260;
+}
+
+.dark .t-dropdown[data-slot="dropdown-menu-content"] {
+  --shadow-panel: 0 12px 36px rgb(0 0 0 / 28%);
+}
+
 .tutti-rich-text-at-menu {
   z-index: 2300;
   max-height: 256px;
