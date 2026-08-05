@@ -11,6 +11,7 @@ import { AgnesVideoProvider } from "./agnes-video.js";
 import {
   type CodexImagegenCapability,
   detectCodexImagegenCapability,
+  detectConfiguredCodexImagegenCapability,
 } from "./codex-imagegen-capability.js";
 import { CodexImagegenProvider } from "./codex-imagegen.js";
 import { GoogleImageProvider } from "./google-image.js";
@@ -58,19 +59,7 @@ export function registerAllProviders(
       options.logger,
     );
   } else {
-    const capability = options.detectCodexImagegenCapability
-      ? options.detectCodexImagegenCapability(env)
-      : detectCodexImagegenCapability({
-          enabled: true,
-          ...(env.codexImagegenCodexHome
-            ? { codexHome: env.codexImagegenCodexHome }
-            : {}),
-          ...(env.codexImagegenTimeoutMs
-            ? { timeoutMs: env.codexImagegenTimeoutMs }
-            : {}),
-        });
-    logCodexImagegenCapability(capability, options.logger);
-    if (capability.ready) {
+    if (env.tuttiCliPath) {
       registerImageProvider(
         new CodexImagegenProvider({
           ...(env.codexImagegenCodexHome
@@ -82,8 +71,46 @@ export function registerAllProviders(
           ...(env.codexImagegenTimeoutMs
             ? { timeoutMs: env.codexImagegenTimeoutMs }
             : {}),
+          resolveCapability: () =>
+            detectConfiguredCodexImagegenCapability({
+              enabled: true,
+              ...(env.codexImagegenCodexHome
+                ? { codexHome: env.codexImagegenCodexHome }
+                : {}),
+              ...(env.codexImagegenTimeoutMs
+                ? { timeoutMs: env.codexImagegenTimeoutMs }
+                : {}),
+            }),
         }),
       );
+    } else {
+      const capability = options.detectCodexImagegenCapability
+        ? options.detectCodexImagegenCapability(env)
+        : detectCodexImagegenCapability({
+            enabled: true,
+            ...(env.codexImagegenCodexHome
+              ? { codexHome: env.codexImagegenCodexHome }
+              : {}),
+            ...(env.codexImagegenTimeoutMs
+              ? { timeoutMs: env.codexImagegenTimeoutMs }
+              : {}),
+          });
+      logCodexImagegenCapability(capability, options.logger);
+      if (capability.ready) {
+        registerImageProvider(
+          new CodexImagegenProvider({
+            ...(env.codexImagegenCodexHome
+              ? { codexHome: env.codexImagegenCodexHome }
+              : {}),
+            ...(env.codexImagegenAgentModel
+              ? { agentModel: env.codexImagegenAgentModel }
+              : {}),
+            ...(env.codexImagegenTimeoutMs
+              ? { timeoutMs: env.codexImagegenTimeoutMs }
+              : {}),
+          }),
+        );
+      }
     }
   }
 

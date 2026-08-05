@@ -26,6 +26,26 @@ describe("CodexImagegenProvider", () => {
     );
   });
 
+  it("fails before execution when the configured Agent Target is unavailable", async () => {
+    const execCodex = vi.fn();
+    const provider = new CodexImagegenProvider({
+      execCodex,
+      resolveCapability: async () => ({
+        ready: false,
+        reasons: ["agent_target_unavailable"],
+        checkedAt: "2026-08-06T00:00:00.000Z",
+      }),
+    });
+
+    await expect(
+      provider.generate({
+        model: "codex/gpt-image-2",
+        prompt: "a red mug",
+      }),
+    ).rejects.toThrow("agent_target_unavailable");
+    expect(execCodex).not.toHaveBeenCalled();
+  });
+
   it("generates through codex exec and returns a data URI", async () => {
     const sourceHome = await createCodexImagegenHomeFixture();
     const execCodex = vi.fn(async (args: readonly string[], options) => {
@@ -64,10 +84,17 @@ describe("CodexImagegenProvider", () => {
       });
       return { imagePath, stdout: "", stderr: "" };
     });
+    const createExecCodex = vi.fn(() => execCodex);
     const provider = new CodexImagegenProvider({
       codexHome: sourceHome,
       timeoutMs: 1234,
-      execCodex,
+      createExecCodex,
+      resolveCapability: async () => ({
+        ready: true,
+        reasons: [],
+        codexPath: String.raw`C:\Program Files\Tutti Agents\codex.exe`,
+        checkedAt: "2026-08-06T00:00:00.000Z",
+      }),
     });
 
     try {
@@ -102,6 +129,9 @@ describe("CodexImagegenProvider", () => {
           }),
           timeoutMs: 1234,
         }),
+      );
+      expect(createExecCodex).toHaveBeenCalledWith(
+        String.raw`C:\Program Files\Tutti Agents\codex.exe`,
       );
       const args = execCodex.mock.calls[0]?.[0] ?? [];
       expect(args.at(-1)).toContain(
@@ -208,9 +238,10 @@ describe("CodexImagegenProvider", () => {
   it("returns as soon as a complete generated PNG appears", async () => {
     const sourceHome = await createCodexImagegenHomeFixture();
     const fakeCodexScript = join(sourceHome, "fake-codex.js");
-    const fakeCodexPath = process.platform === "win32"
-      ? join(sourceHome, "fake-codex.cmd")
-      : join(sourceHome, "fake-codex");
+    const fakeCodexPath =
+      process.platform === "win32"
+        ? join(sourceHome, "fake-codex.cmd")
+        : join(sourceHome, "fake-codex");
     const pngHex = createPngBuffer(640, 480).toString("hex");
     await writeFile(
       fakeCodexScript,

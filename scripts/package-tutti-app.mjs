@@ -1031,12 +1031,12 @@ async function readSourceManifest() {
 }
 
 function resolveBuildCommand(command, args) {
-  if (process.platform !== "win32" || command !== "pnpm") {
+  if (command !== "pnpm") {
     return { command, args };
   }
   const pnpmCli = process.env.npm_execpath?.trim();
   if (!pnpmCli) {
-    throw new Error("npm_execpath is required to run pnpm on Windows");
+    throw new Error("npm_execpath is required to run the package manager");
   }
   return { command: process.execPath, args: [pnpmCli, ...args] };
 }
@@ -1240,7 +1240,13 @@ async function bundleToolsMcpServer() {
 async function createZip(version) {
   const zipPath = path.join(buildRoot, `ai-media-canvas-${version}.zip`);
   await rm(zipPath, { force: true });
-  await run("zip", ["-qry", zipPath, "."], { cwd: packageRoot });
+  if (process.platform === "win32") {
+    await run("tar.exe", ["-a", "-c", "-f", zipPath, "."], {
+      cwd: packageRoot,
+    });
+  } else {
+    await run("zip", ["-qry", zipPath, "."], { cwd: packageRoot });
+  }
   return zipPath;
 }
 

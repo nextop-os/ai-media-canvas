@@ -20,6 +20,10 @@ export type ResolvedAgentTarget = {
   providerId: AgentRuntimeProvider;
 };
 
+export type ResolvedCodexAgentTarget = ResolvedAgentTarget & {
+  executablePath: string;
+};
+
 export class AgentTargetResolutionError extends Error {
   constructor(message: string) {
     super(message);
@@ -82,6 +86,56 @@ export async function detectAgentTargets(
       null,
     detections,
     targets,
+  };
+}
+
+/**
+ * Resolves the configured Codex target without silently choosing between
+ * multiple candidates. The default target wins when it is Codex; otherwise a
+ * single available Codex target is unambiguous.
+ */
+export async function resolveCodexAgentTarget(
+  input: {
+    detectContext?: DetectContext;
+    runtime?: AgentDiscoveryRuntime;
+  } = {},
+): Promise<ResolvedCodexAgentTarget> {
+  const { detections } = await detectAgentTargets({
+    ...(input.detectContext ? { detectContext: input.detectContext } : {}),
+    refresh: true,
+    ...(input.runtime ? { runtime: input.runtime } : {}),
+  });
+  const candidates = detections.flatMap((detection) => {
+    const agentTargetId = detection.agentTargetId?.trim();
+    const executablePath = detection.executablePath?.trim();
+    if (
+      detection.provider !== "codex" ||
+      !detection.supported ||
+      !agentTargetId ||
+      !executablePath
+    ) {
+      return [];
+    }
+    return [{ agentTargetId, executablePath, isDefault: detection.isDefault }];
+  });
+  const preferred = candidates.filter((candidate) => candidate.isDefault);
+  const selected =
+    preferred.length === 1
+      ? preferred[0]
+      : preferred.length === 0 && candidates.length === 1
+        ? candidates[0]
+        : undefined;
+  if (!selected) {
+    throw new AgentTargetResolutionError(
+      candidates.length === 0
+        ? "No available Codex Agent Target has a resolved executable."
+        : "Multiple Codex Agent Targets are available; configure one as the default target.",
+    );
+  }
+  return {
+    agentTargetId: selected.agentTargetId,
+    providerId: "codex",
+    executablePath: selected.executablePath,
   };
 }
 

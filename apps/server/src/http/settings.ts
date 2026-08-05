@@ -11,7 +11,10 @@ import {
   LOCAL_WORKSPACE_ID,
   type SettingsService,
 } from "../features/settings/settings-service.js";
-import { detectCodexImagegenCapability } from "../generation/providers/codex-imagegen-capability.js";
+import {
+  detectCodexImagegenCapability,
+  detectConfiguredCodexImagegenCapability,
+} from "../generation/providers/codex-imagegen-capability.js";
 
 export async function registerSettingsRoutes(
   app: FastifyInstance,
@@ -26,9 +29,9 @@ export async function registerSettingsRoutes(
         options.localUser,
         LOCAL_WORKSPACE_ID,
       );
-      return reply.code(200).send(
-        workspaceSettingsResponseSchema.parse({ settings }),
-      );
+      return reply
+        .code(200)
+        .send(workspaceSettingsResponseSchema.parse({ settings }));
     } catch {
       return reply.code(500).send(
         applicationErrorResponseSchema.parse({
@@ -43,19 +46,29 @@ export async function registerSettingsRoutes(
 
   app.get("/api/workspace/settings/codex-imagegen", async (_request, reply) => {
     try {
-      const effectiveEnv = await options.settingsService.getEffectiveServerEnv(
-        LOCAL_WORKSPACE_ID,
-      );
+      const effectiveEnv =
+        await options.settingsService.getEffectiveServerEnv(LOCAL_WORKSPACE_ID);
+      const capability = effectiveEnv.tuttiCliPath
+        ? await detectConfiguredCodexImagegenCapability({
+            enabled: effectiveEnv.codexImagegenEnabled === true,
+            ...(effectiveEnv.codexImagegenCodexHome
+              ? { codexHome: effectiveEnv.codexImagegenCodexHome }
+              : {}),
+            ...(effectiveEnv.codexImagegenTimeoutMs
+              ? { timeoutMs: effectiveEnv.codexImagegenTimeoutMs }
+              : {}),
+          })
+        : detectCodexImagegenCapability({
+            enabled: effectiveEnv.codexImagegenEnabled === true,
+            ...(effectiveEnv.codexImagegenCodexHome
+              ? { codexHome: effectiveEnv.codexImagegenCodexHome }
+              : {}),
+            ...(effectiveEnv.codexImagegenTimeoutMs
+              ? { timeoutMs: effectiveEnv.codexImagegenTimeoutMs }
+              : {}),
+          });
       return reply.code(200).send({
-        capability: detectCodexImagegenCapability({
-          enabled: effectiveEnv.codexImagegenEnabled === true,
-          ...(effectiveEnv.codexImagegenCodexHome
-            ? { codexHome: effectiveEnv.codexImagegenCodexHome }
-            : {}),
-          ...(effectiveEnv.codexImagegenTimeoutMs
-            ? { timeoutMs: effectiveEnv.codexImagegenTimeoutMs }
-            : {}),
-        }),
+        capability,
       });
     } catch {
       return reply.code(500).send(
@@ -77,9 +90,9 @@ export async function registerSettingsRoutes(
         LOCAL_WORKSPACE_ID,
         payload,
       );
-      return reply.code(200).send(
-        workspaceSettingsResponseSchema.parse({ settings }),
-      );
+      return reply
+        .code(200)
+        .send(workspaceSettingsResponseSchema.parse({ settings }));
     } catch {
       return reply.code(500).send(
         applicationErrorResponseSchema.parse({
