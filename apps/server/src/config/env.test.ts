@@ -35,12 +35,17 @@ describe("loadServerEnv", () => {
     );
 
     expect(env.tuttiApiBaseUrl).toBe("https://tutti.example/api");
-    expect(env.appDataDir).toBe("/data/tutti-app");
+    // Prefer VM database dir over FabricFS TUTTI_APP_DATA_DIR (.tsh).
+    expect(env.appDataDir).toBe("/var/lib/tutti-app-database");
+    expect(env.dataRoot).toBe("/var/lib/tutti-app-database");
     expect(env.databaseRoot).toBe("/var/lib/tutti-app-database");
     expect(env.tuttiAppId).toBe("tutti-app");
     expect(env.tuttiAppInstallationId).toBe("tutti-installation");
     expect(env.tuttiCliPath).toBe("/usr/local/bin/tutti");
-    expect(env.tuttiManagedFilesRoot).toBe("/tmp/tutti-managed-files");
+    // Ignore platform managed-files root under DATA_DIR when DATABASE_DIR exists.
+    expect(env.tuttiManagedFilesRoot).toBe(
+      "/var/lib/tutti-app-database/uploads",
+    );
     expect(env.tuttiAppServerToken).toBe("tutti-token");
     expect(env.tuttiWorkspaceId).toBe("tutti-workspace");
   });

@@ -63,18 +63,23 @@ export function loadServerEnv(
 ): ServerEnv {
   const webDistDir =
     overrides.webDistDir ?? normalizeOptionalString(source.AIMC_WEB_DIST);
-  const dataRoot =
-    overrides.dataRoot ?? normalizeOptionalString(source.AIMC_DATA_ROOT);
+  // Prefer VM-local database dir over FabricFS TUTTI_APP_DATA_DIR (.tsh).
   const databaseRoot =
     overrides.databaseRoot ??
     normalizeOptionalString(
       source.AIMC_DATABASE_ROOT ?? source.TUTTI_APP_DATABASE_DIR,
-    ) ??
-    dataRoot;
+    );
+  const dataRoot =
+    overrides.dataRoot ??
+    normalizeOptionalString(source.AIMC_DATA_ROOT) ??
+    databaseRoot ??
+    normalizeOptionalString(source.TUTTI_APP_DATA_DIR);
+  const resolvedDatabaseRoot = databaseRoot ?? dataRoot;
   const appDataDir =
     overrides.appDataDir ??
-    normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
-    dataRoot;
+    normalizeOptionalString(source.AIMC_DATA_ROOT) ??
+    resolvedDatabaseRoot ??
+    normalizeOptionalString(source.TUTTI_APP_DATA_DIR);
   const agentBackendMode =
     overrides.agentBackendMode ??
     parseAgentBackendMode(
@@ -158,8 +163,15 @@ export function loadServerEnv(
       source.TUTTI_APP_FILES_DIR ??
       source.TUTTI_FILES_ROOT,
   );
+  // When a VM database dir is injected, keep managed uploads there — ignore the
+  // platform default under TUTTI_APP_DATA_DIR (.tsh).
   const tuttiManagedFilesRoot =
     overrides.tuttiManagedFilesRoot ??
+    normalizeOptionalString(source.AIMC_TUTTI_MANAGED_FILES_ROOT) ??
+    (resolvedDatabaseRoot &&
+    normalizeOptionalString(source.TUTTI_APP_DATABASE_DIR)
+      ? join(resolvedDatabaseRoot, "uploads")
+      : undefined) ??
     configuredTuttiManagedFilesRoot ??
     (dataRoot ? join(dataRoot, "uploads") : undefined);
   const tuttiAppServerToken =
@@ -255,7 +267,7 @@ export function loadServerEnv(
     ...(appDataDir ? { appDataDir } : {}),
     ...(agentFilesRoot ? { agentFilesRoot } : {}),
     ...(dataRoot ? { dataRoot } : {}),
-    ...(databaseRoot ? { databaseRoot } : {}),
+    ...(resolvedDatabaseRoot ? { databaseRoot: resolvedDatabaseRoot } : {}),
     ...(webDistDir ? { webDistDir } : {}),
     ...(agnesApiKey ? { agnesApiKey } : {}),
     ...(agnesBaseUrl ? { agnesBaseUrl } : {}),

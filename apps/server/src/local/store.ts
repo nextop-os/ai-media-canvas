@@ -373,7 +373,9 @@ export function createLocalStore(options: {
   const dataRoot =
     options.dataRoot ?? resolve(process.cwd(), "../../local-data");
   const databaseRoot = options.databaseRoot ?? dataRoot;
-  const assetsRoot = join(dataRoot, "assets");
+  // Private assets (thumbnails, uploads, brand-kit) live with the VM-local DB.
+  // Public generated media goes under the user project /workspace dir instead.
+  const assetsRoot = join(databaseRoot, "assets");
   const uploadsRoot = join(assetsRoot, "uploads");
   const brandKitRoot = join(assetsRoot, "brand-kits");
   const projectRoot = join(assetsRoot, "projects");
@@ -1494,6 +1496,15 @@ export function createLocalStore(options: {
         ? (getProjectWorkspaceRoot(input.projectId) ??
           ensureProjectWorkspaceRoot(input.projectId))
         : null;
+    if (
+      input.scope === "generated" &&
+      isTshWorkspaceAppHost() &&
+      !projectWorkspace
+    ) {
+      throw new Error(
+        "Generated media requires a bound /workspace project directory on TSH.",
+      );
+    }
     let objectPath: string;
     let filePath: string;
     if (projectWorkspace) {
