@@ -116,13 +116,17 @@ export async function executeImageGenerationJob(
     byteSize: buffer.length,
     mimeType,
   });
+  const projectId =
+    job.project_id ??
+    (job.canvas_id ? store.getCanvas(job.canvas_id)?.projectId : null);
   const stored = store.uploadFile({
     bucket: "project-assets",
     fileName: `${provider}-${Date.now()}`,
     displayName: payload.title ?? payload.prompt,
     fileBuffer: buffer,
     mimeType,
-    ...(job.project_id ? { projectId: job.project_id } : {}),
+    scope: "generated",
+    ...(projectId ? { projectId } : {}),
   });
   lap("asset_uploaded", {
     assetId: stored.asset.id,

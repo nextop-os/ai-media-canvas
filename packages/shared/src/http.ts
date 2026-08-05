@@ -32,6 +32,8 @@ export const healthResponseSchema = z.object({
   ok: z.literal(true),
   service: z.literal("ai-media-canvas-server"),
   version: z.string().min(1),
+  tshWorkspaceApp: z.boolean().optional(),
+  defaultParentPath: z.string().min(1).optional(),
 });
 
 export const runCancelResponseSchema = z.object({
@@ -50,6 +52,8 @@ export const projectListResponseSchema = z.object({
 export const projectCreateRequestSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string().trim().min(1).optional(),
+  /** TSH only: parent directory under /workspace for the project folder. */
+  parentPath: z.string().trim().min(1).optional(),
 });
 
 export const projectCreateResponseSchema = z.object({

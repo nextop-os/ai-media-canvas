@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -52,5 +52,37 @@ describe("local asset storage", () => {
 
     expect(uploaded.asset.objectPath).toMatch(/\.mpeg$/);
     expect(uploaded.filePath).toMatch(/\.mpeg$/);
+  });
+
+  it("writes generated assets into the bound project workspace", () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-generated-"));
+    tempDirs.push(dataRoot);
+    const workspaceRoot = join(dataRoot, "user-project");
+
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+    });
+    const project = store.createProject({ name: "Campaign" });
+    expect(store.bindProjectWorkspaceRoot(project.id, workspaceRoot)).toBe(
+      workspaceRoot,
+    );
+
+    const uploaded = store.uploadFile({
+      bucket: "project-assets",
+      fileName: "codex-image",
+      displayName: "Seaside adventure",
+      fileBuffer: Buffer.from("png-bytes"),
+      mimeType: "image/png",
+      scope: "generated",
+      projectId: project.id,
+    });
+
+    expect(uploaded.filePath.startsWith(join(workspaceRoot, "generated"))).toBe(
+      true,
+    );
+    expect(uploaded.filePath).toMatch(/Seaside_adventure-[a-f0-9]{8}\.png$/);
+    expect(existsSync(uploaded.filePath)).toBe(true);
+    expect(uploaded.filePath.includes(join(dataRoot, "assets"))).toBe(false);
   });
 });

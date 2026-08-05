@@ -77,6 +77,11 @@ const CLI_COMMANDS = [
         type: "string",
         description: "Optional project description.",
       },
+      "parent-path": {
+        type: "string",
+        description:
+          "Optional TSH parent directory under /workspace for the project folder.",
+      },
     },
     required: ["name"],
   },

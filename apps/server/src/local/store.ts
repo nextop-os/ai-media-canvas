@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -52,6 +54,14 @@ import type {
   WorkspaceSettings,
 } from "@aimc/shared";
 import { getBundledSkills } from "./skill-catalog.js";
+import {
+  allocateRenamedTshProjectRoot,
+  allocateTshProjectRoot,
+  ensureTshProjectRoot,
+  isTshWorkspaceAppHost,
+  resolveTshParentPath,
+  safeTshFileStem,
+} from "./tsh-workspace.js";
 
 const LOCAL_USER_ID = "local-user";
 const LOCAL_WORKSPACE_ID = "local-workspace";
@@ -605,6 +615,7 @@ export function createLocalStore(options: {
   ensureWorkspaceSettingsSchema();
   ensureAssetSchema();
   ensureCanvasSchema();
+  ensureProjectSchema();
   ensureAgentRunSchema();
   ensureBackgroundJobSchema();
   seedBaseData();
@@ -731,6 +742,26 @@ export function createLocalStore(options: {
         `ALTER TABLE canvases ADD COLUMN revision INTEGER NOT NULL DEFAULT 0`,
       );
     }
+  }
+
+  function ensureProjectSchema() {
+    const columns = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{
+      name: string;
+    }>;
+    const columnNames = new Set(columns.map((column) => column.name));
+    if (!columnNames.has("workspace_root")) {
+      db.exec(`ALTER TABLE projects ADD COLUMN workspace_root TEXT`);
+    }
+  }
+
+  function allocateWorkspaceRootForProject(
+    projectId: string,
+    name: string,
+    parentPath?: string | null,
+  ): string | null {
+    const parent = resolveTshParentPath(parentPath);
+    if (!parent) return null;
+    return ensureTshProjectRoot(allocateTshProjectRoot(parent, name, projectId));
   }
 
   function ensureAgentRunSchema() {
@@ -907,6 +938,11 @@ export function createLocalStore(options: {
   }
 
   function ensureDefaultProject() {
+    // On TSH the home UI creates projects under a chosen /workspace parent.
+    // Seeding "My First Project" would allocate stray directories like
+    // My_First_Project-<id8> and race between server/worker startups.
+    if (isTshWorkspaceAppHost()) return;
+
     const existing = db
       .prepare(
         `SELECT id FROM projects WHERE archived_at IS NULL ORDER BY created_at ASC LIMIT 1`,
@@ -922,8 +958,8 @@ export function createLocalStore(options: {
       db.prepare(
         `
           INSERT INTO projects (
-            id, name, slug, description, primary_canvas_id, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, name, slug, description, primary_canvas_id, workspace_root, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
       ).run(
         projectId,
@@ -931,6 +967,7 @@ export function createLocalStore(options: {
         slugify(DEFAULT_PROJECT_NAME),
         null,
         canvasId,
+        null,
         timestamp,
         timestamp,
       );
@@ -1451,16 +1488,36 @@ export function createLocalStore(options: {
     const ext = extname(input.fileName) || mimeToExt(input.mimeType);
     const displayName = normalizeAssetDisplayName(input.displayName, ext);
     const assetId = randomUUID();
-    const objectPath = `${input.scope}/${assetId}${ext}`;
-    const dir =
-      input.scope === "brand-kit"
-        ? brandKitRoot
-        : input.scope === "project"
-          ? projectRoot
-          : input.scope === "generated"
-            ? generatedRoot
-            : uploadsRoot;
-    const filePath = join(dir, `${assetId}${ext}`);
+    // Prefer the bound user project directory for generated media.
+    const projectWorkspace =
+      input.scope === "generated" && input.projectId
+        ? (getProjectWorkspaceRoot(input.projectId) ??
+          ensureProjectWorkspaceRoot(input.projectId))
+        : null;
+    let objectPath: string;
+    let filePath: string;
+    if (projectWorkspace) {
+      const generatedDir = join(projectWorkspace, "generated");
+      mkdirSync(generatedDir, { recursive: true });
+      const shortId = assetId.replace(/-/g, "").slice(0, 8);
+      const stem = safeTshFileStem(
+        displayName.replace(/\.[^.]+$/, "") || "generated",
+      );
+      const fileBase = `${stem}-${shortId}${ext}`;
+      objectPath = `generated/${fileBase}`;
+      filePath = join(generatedDir, fileBase);
+    } else {
+      objectPath = `${input.scope}/${assetId}${ext}`;
+      const dir =
+        input.scope === "brand-kit"
+          ? brandKitRoot
+          : input.scope === "project"
+            ? projectRoot
+            : input.scope === "generated"
+              ? generatedRoot
+              : uploadsRoot;
+      filePath = join(dir, `${assetId}${ext}`);
+    }
     writeFileSync(filePath, input.buffer);
     const createdAt = nowIso();
     db.prepare(
@@ -1626,6 +1683,11 @@ export function createLocalStore(options: {
     const projectId = randomUUID();
     const canvasId = randomUUID();
     const name = input.name.trim();
+    const workspaceRoot = allocateWorkspaceRootForProject(
+      projectId,
+      name,
+      input.parentPath,
+    );
     const defaultBrandKit = db
       .prepare(
         `
@@ -1658,8 +1720,8 @@ export function createLocalStore(options: {
       db.prepare(
         `
           INSERT INTO projects (
-            id, name, slug, description, primary_canvas_id, brand_kit_id, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            id, name, slug, description, primary_canvas_id, brand_kit_id, workspace_root, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       ).run(
         projectId,
@@ -1668,6 +1730,7 @@ export function createLocalStore(options: {
         input.description?.trim() || null,
         canvasId,
         defaultBrandKit?.id ?? null,
+        workspaceRoot,
         timestamp,
         timestamp,
       );
@@ -1712,6 +1775,73 @@ export function createLocalStore(options: {
     return mapProjectRow(row);
   }
 
+  function getProjectWorkspaceRoot(projectId: string): string | null {
+    const row = db
+      .prepare(
+        `
+          SELECT workspace_root
+          FROM projects
+          WHERE id = ? AND archived_at IS NULL
+          LIMIT 1
+        `,
+      )
+      .get(projectId) as { workspace_root: string | null } | undefined;
+    return row?.workspace_root?.trim() || null;
+  }
+
+  function bindProjectWorkspaceRoot(
+    projectId: string,
+    root: string,
+  ): string | null {
+    if (!getProject(projectId)) return null;
+    const resolved = resolve(root.trim());
+    mkdirSync(resolved, { recursive: true });
+    db.prepare(
+      `UPDATE projects SET workspace_root = ?, updated_at = ? WHERE id = ?`,
+    ).run(resolved, nowIso(), projectId);
+    return resolved;
+  }
+
+  /**
+   * Ensure a TSH user-visible project directory exists and is bound.
+   * Returns null outside TSH (local-agent keeps using ephemeral tmp cwd).
+   */
+  function ensureProjectWorkspaceRoot(projectId: string): string | null {
+    if (!isTshWorkspaceAppHost()) return null;
+    const row = db
+      .prepare(
+        `
+          SELECT id, name, workspace_root
+          FROM projects
+          WHERE id = ? AND archived_at IS NULL
+          LIMIT 1
+        `,
+      )
+      .get(projectId) as
+      | { id: string; name: string; workspace_root: string | null }
+      | undefined;
+    if (!row) return null;
+    const existing = row.workspace_root?.trim();
+    if (existing) {
+      mkdirSync(existing, { recursive: true });
+      return existing;
+    }
+    const workspaceRoot = allocateWorkspaceRootForProject(row.id, row.name);
+    if (!workspaceRoot) return null;
+    db.prepare(
+      `UPDATE projects SET workspace_root = ?, updated_at = ? WHERE id = ?`,
+    ).run(workspaceRoot, nowIso(), projectId);
+    return workspaceRoot;
+  }
+
+  function ensureProjectWorkspaceRootForCanvas(
+    canvasId: string,
+  ): string | null {
+    const canvas = getCanvas(canvasId);
+    if (!canvas) return null;
+    return ensureProjectWorkspaceRoot(canvas.projectId);
+  }
+
   function getProject(projectId: string) {
     const row = db
       .prepare(
@@ -1750,15 +1880,17 @@ export function createLocalStore(options: {
     projectId: string,
     input: ProjectUpdateRequest,
   ):
-    | { ok: true }
+    | { ok: true; workspaceRoot?: string | null }
     | { ok: false; reason: "project_not_found" | "brand_kit_not_found" } {
     const existing = getProject(projectId);
     if (!existing) return { ok: false, reason: "project_not_found" };
     const patch: string[] = [];
     const values: SQLInputValue[] = [];
+    const nextName =
+      input.name !== undefined ? input.name.trim() : existing.name;
     if (input.name !== undefined) {
       patch.push("name = ?");
-      values.push(input.name.trim());
+      values.push(nextName);
     }
     if (input.brandKitId !== undefined) {
       if (input.brandKitId !== null && !getBrandKit(input.brandKitId)) {
@@ -1767,13 +1899,41 @@ export function createLocalStore(options: {
       patch.push("brand_kit_id = ?");
       values.push(input.brandKitId);
     }
+
+    let nextWorkspaceRoot = getProjectWorkspaceRoot(projectId);
+    if (
+      input.name !== undefined &&
+      nextName &&
+      nextName !== existing.name &&
+      nextWorkspaceRoot &&
+      isTshWorkspaceAppHost()
+    ) {
+      const renamed = allocateRenamedTshProjectRoot(
+        nextWorkspaceRoot,
+        nextName,
+      );
+      if (renamed !== nextWorkspaceRoot) {
+        if (existsSync(renamed)) {
+          throw new Error(`A directory already exists at ${renamed}`);
+        }
+        if (existsSync(nextWorkspaceRoot)) {
+          renameSync(nextWorkspaceRoot, renamed);
+        } else {
+          mkdirSync(renamed, { recursive: true });
+        }
+        nextWorkspaceRoot = renamed;
+        patch.push("workspace_root = ?");
+        values.push(renamed);
+      }
+    }
+
     patch.push("updated_at = ?");
     values.push(nowIso());
     values.push(projectId);
     db.prepare(`UPDATE projects SET ${patch.join(", ")} WHERE id = ?`).run(
       ...values,
     );
-    return { ok: true };
+    return { ok: true, workspaceRoot: nextWorkspaceRoot };
   }
 
   function archiveProject(projectId: string) {
@@ -3684,6 +3844,7 @@ export function createLocalStore(options: {
     mimeType: string;
     projectId?: string;
     displayName?: string;
+    scope?: "upload" | "generated";
   }) {
     return writeAssetFile({
       bucket: input.bucket,
@@ -3693,7 +3854,7 @@ export function createLocalStore(options: {
       ...(input.displayName !== undefined
         ? { displayName: input.displayName }
         : {}),
-      scope: "upload",
+      scope: input.scope ?? "upload",
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     });
   }
@@ -4510,6 +4671,10 @@ export function createLocalStore(options: {
     listProjects,
     createProject,
     getProject,
+    getProjectWorkspaceRoot,
+    bindProjectWorkspaceRoot,
+    ensureProjectWorkspaceRoot,
+    ensureProjectWorkspaceRootForCanvas,
     updateProject,
     archiveProject,
     saveProjectThumbnail,

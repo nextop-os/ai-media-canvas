@@ -711,6 +711,45 @@ describe("createLocalToolGatewayService", () => {
     });
   });
 
+  it("exposes set_project_title when a title updater is configured", async () => {
+    const setProjectTitle = vi.fn(async ({ canvasId, title }) => ({
+      projectId: "project-1",
+      success: true as const,
+      title,
+      workspaceRoot: `/workspace/${title}-abcdef12`,
+      canvasId,
+    }));
+    const gateway = createLocalToolGatewayService({
+      createUserClient: vi.fn(),
+      setProjectTitle,
+    });
+    const session = gateway.createSession({
+      canvasId: "canvas-1",
+      runId: "run-1",
+      runtimeEnv: baseRuntimeEnv(),
+      runtimeProvider: "claude",
+    });
+
+    const names = gateway.getManifest(session.token).map((tool) => tool.name);
+    expect(names).toContain("set_project_title");
+    await expect(
+      gateway.callTool(session.token, "set_project_title", {
+        title: "海边奇遇",
+      }),
+    ).resolves.toMatchObject({
+      isError: false,
+      output: {
+        success: true,
+        title: "海边奇遇",
+        workspaceRoot: "/workspace/海边奇遇-abcdef12",
+      },
+    });
+    expect(setProjectTitle).toHaveBeenCalledWith({
+      canvasId: "canvas-1",
+      title: "海边奇遇",
+    });
+  });
+
   it("lets agents persist Codex imagegen delegation through a structured tool", async () => {
     const patchWorkspaceSettings = vi.fn(async ({ patch }) => ({
       anthropicApiKey: "secret-anthropic-key",

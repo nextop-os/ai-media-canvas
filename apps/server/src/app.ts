@@ -1038,6 +1038,26 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         },
       );
     },
+    setProjectTitle: async ({ canvasId, title }) => {
+      const canvas = store.getCanvas(canvasId);
+      if (!canvas) {
+        throw new Error("Canvas not found for project title update.");
+      }
+      const result = store.updateProject(canvas.projectId, { name: title });
+      if (!result.ok) {
+        throw new Error("Project not found for project title update.");
+      }
+      const project = store.getProject(canvas.projectId);
+      if (!project) {
+        throw new Error("Project not found for project title update.");
+      }
+      return {
+        projectId: canvas.projectId,
+        success: true as const,
+        title: project.name,
+        workspaceRoot: result.workspaceRoot ?? null,
+      };
+    },
   });
   const localToolGatewayBaseUrl = `http://127.0.0.1:${env.port}/api/agent-tools`;
   const localAuth: RequestAuthenticator = {
@@ -1065,6 +1085,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     jobService,
     loadSessionMessages: (sessionId) =>
       chatService.listMessages(localUser, sessionId),
+    resolveProjectWorkspaceRoot: ({ canvasId }) => {
+      if (!canvasId) return null;
+      return store.ensureProjectWorkspaceRootForCanvas(canvasId);
+    },
     publishCanvasSyncEvent: ({ canvasId, event, runId }) => {
       const persistedEvent = store.appendAgentRunEvent({
         canvasId,
