@@ -892,7 +892,11 @@ function parseByteRange(
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const env = loadServerEnv(options.env);
   registerAllProviders(env);
-  const assetBaseUrl = `http://127.0.0.1:${env.port}`;
+  // Prefer the Tutti/public origin so thumbnail URLs work through the host
+  // proxy. Fall back to loopback for local direct startup.
+  const assetBaseUrl = (
+    env.webOrigin?.trim() || `http://127.0.0.1:${env.port}`
+  ).replace(/\/$/, "");
   const webDistDir = env.webDistDir ?? DEFAULT_WEB_DIST_DIR;
   const store = createLocalStore({
     assetBaseUrl,

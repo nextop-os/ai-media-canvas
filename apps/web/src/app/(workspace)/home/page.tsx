@@ -36,6 +36,7 @@ import {
   homeExampleSeedCategories,
 } from "@/lib/home-example-seeds";
 import { fetchHealth } from "@/lib/fetch-health";
+import { toRuntimeAssetUrl } from "@/lib/local-assets";
 import { formatProjectName } from "@/lib/project-display";
 import { fetchProjects } from "@/lib/server-api";
 import { formatDate } from "@/lib/utils";
@@ -385,7 +386,11 @@ export default function HomePage() {
                   </button>
 
                   <ProjectThumbnailPreview
-                    src={project.thumbnailUrl}
+                    src={
+                      project.thumbnailUrl
+                        ? toRuntimeAssetUrl(project.thumbnailUrl)
+                        : null
+                    }
                     alt={projectName}
                     previewLabel={t("recentProjects.previewCover", {
                       name: projectName,

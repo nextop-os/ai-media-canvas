@@ -9,7 +9,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { extname, join, relative, resolve } from "node:path";
+import { basename, extname, join, relative, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
 import type {
@@ -4034,13 +4034,43 @@ export function createLocalStore(options: {
     };
   }
 
+  function resolveExistingAssetFilePath(row: AssetRow): string | null {
+    if (existsSync(row.file_path)) return row.file_path;
+    // Heal legacy FabricFS (.tsh / dataRoot) paths after private assets moved
+    // under databaseRoot. object_path is like "project/<id>.webp".
+    const slash = row.object_path.indexOf("/");
+    if (slash <= 0) return null;
+    const scope = row.object_path.slice(0, slash);
+    const fileName = basename(row.file_path) || row.object_path.slice(slash + 1);
+    const scopeDir =
+      scope === "project"
+        ? "projects"
+        : scope === "upload"
+          ? "uploads"
+          : scope === "brand-kit"
+            ? "brand-kits"
+            : scope === "generated"
+              ? "generated"
+              : null;
+    if (!scopeDir || !fileName) return null;
+    const candidate = join(assetsRoot, scopeDir, fileName);
+    if (!existsSync(candidate) || candidate === row.file_path) return null;
+    db.prepare(`UPDATE assets SET file_path = ? WHERE id = ?`).run(
+      candidate,
+      row.id,
+    );
+    return candidate;
+  }
+
   function getAssetResponse(assetId: string) {
     const row = getAssetRow(assetId);
     if (!row) return null;
+    const filePath = resolveExistingAssetFilePath(row);
+    if (!filePath) return null;
     return {
-      filePath: row.file_path,
+      filePath,
       mimeType: row.mime_type ?? "application/octet-stream",
-      size: statSync(row.file_path).size,
+      size: statSync(filePath).size,
     };
   }
 
