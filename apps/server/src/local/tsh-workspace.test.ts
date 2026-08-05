@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join, resolve } from "node:path";
 
 import {
   allocateRenamedTshProjectRoot,
@@ -17,13 +18,14 @@ describe("tsh-workspace", () => {
   });
 
   it("resolves parent paths only on TSH hosts", () => {
+    const workspaceRoot = resolve("/workspace");
     expect(resolveTshParentPath(undefined, {})).toBeNull();
     expect(
       resolveTshParentPath(undefined, { TSH_WORKSPACE_APP: "1" }),
-    ).toBe("/workspace");
+    ).toBe(workspaceRoot);
     expect(
       resolveTshParentPath("/workspace/docs", { TSH_WORKSPACE_APP: "1" }),
-    ).toBe("/workspace/docs");
+    ).toBe(join(workspaceRoot, "docs"));
   });
 
   it("keeps Unicode stems for Chinese titles", () => {
@@ -33,7 +35,7 @@ describe("tsh-workspace", () => {
   it("allocates title-shortId under /workspace", () => {
     const projectId = "abcdef12-3456-7890-abcd-ef1234567890";
     expect(allocateTshProjectRoot("/workspace", "春季画布", projectId)).toBe(
-      "/workspace/春季画布-abcdef12",
+      join(resolve("/workspace"), "春季画布-abcdef12"),
     );
   });
 
@@ -43,12 +45,12 @@ describe("tsh-workspace", () => {
         "/workspace/Untitled-abcdef12",
         "海边奇遇",
       ),
-    ).toBe("/workspace/海边奇遇-abcdef12");
+    ).toBe(join(resolve("/workspace"), "海边奇遇-abcdef12"));
   });
 
   it("rejects paths outside /workspace", () => {
     expect(() => assertAllowedTshParentPath("/tmp/evil")).toThrow(
-      /inside \/workspace/,
+      "inside /workspace",
     );
     expect(() => assertAllowedTshParentPath("/workspace/.tsh/x")).toThrow(
       /\.tsh/,

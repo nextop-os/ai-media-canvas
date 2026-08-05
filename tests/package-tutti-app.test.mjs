@@ -480,6 +480,13 @@ test("validatePackageRoot requires the files Tutti imports", async () => {
   );
 
   await validatePackageRoot(packageRoot);
+
+  await chmod(path.join(packageRoot, "bootstrap.sh"), 0o644);
+  await assert.rejects(
+    validatePackageRoot(packageRoot, { platform: "linux" }),
+    /bootstrap\.sh must be executable/,
+  );
+  await validatePackageRoot(packageRoot, { platform: "win32" });
 });
 
 test("normalizePackageTimestamps makes package mtimes deterministic", async () => {

@@ -1,0 +1,39 @@
+name: Windows Runtime Check
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/check-windows.yml"
+      - "apps/server/**"
+      - "packages/**"
+      - "scripts/package-tutti-app.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aimc/shared exec tsc --build tsconfig.json --force
+      - run: pnpm --filter @aimc/server typecheck
+      - name: Run Windows runtime tests
+        run: >-
+          pnpm --filter @aimc/server exec vitest run
+          src/config/env.test.ts
+          src/local/tsh-workspace.test.ts
+          src/agent/agent-targets.test.ts
+          src/generation/providers/codex-imagegen-capability.test.ts
+          src/generation/providers/codex-imagegen.test.ts
+      - run: pnpm package:tutti

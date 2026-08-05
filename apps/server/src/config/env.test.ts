@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 
 import { loadServerEnv } from "./env.js";
 
@@ -14,7 +15,7 @@ describe("loadServerEnv", () => {
 
     expect(env.dataRoot).toBe("/tmp/aimc-tutti-data");
     expect(env.appDataDir).toBe("/tmp/aimc-tutti-data");
-    expect(env.tuttiManagedFilesRoot).toBe("/tmp/aimc-tutti-data/uploads");
+    expect(env.tuttiManagedFilesRoot).toBe(join("/tmp/aimc-tutti-data", "uploads"));
     expect(env.version).toBe("1.2.3");
   });
 
@@ -44,7 +45,7 @@ describe("loadServerEnv", () => {
     expect(env.tuttiCliPath).toBe("/usr/local/bin/tutti");
     // Ignore platform managed-files root under DATA_DIR when DATABASE_DIR exists.
     expect(env.tuttiManagedFilesRoot).toBe(
-      "/var/lib/tutti-app-database/uploads",
+      join("/var/lib/tutti-app-database", "uploads"),
     );
     expect(env.tuttiAppServerToken).toBe("tutti-token");
     expect(env.tuttiWorkspaceId).toBe("tutti-workspace");

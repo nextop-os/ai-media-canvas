@@ -2,12 +2,19 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveProcessInvocation } from "@tutti-os/agent-acp-kit/process-adapter";
+
+import {
+  type AgentDiscoveryRuntime,
+  resolveCodexAgentTarget,
+} from "../../agent/agent-targets.js";
 
 export const MIN_CODEX_IMAGEGEN_VERSION = "0.124.0";
 const DEFAULT_CACHE_TTL_MS = 30_000;
 
 export type CodexImagegenUnavailableReason =
   | "disabled"
+  | "agent_target_unavailable"
   | "codex_not_found"
   | "codex_version_too_old"
   | "codex_not_logged_in"
@@ -19,6 +26,7 @@ export type CodexImagegenUnavailableReason =
 export interface CodexImagegenCapability {
   ready: boolean;
   reasons: CodexImagegenUnavailableReason[];
+  detail?: string;
   codexPath?: string;
   codexVersion?: string;
   codexHome?: string;
@@ -109,6 +117,43 @@ export function detectCodexImagegenCapability(
     capability,
   };
   return capability;
+}
+
+export async function detectConfiguredCodexImagegenCapability(options: {
+  enabled: boolean;
+  codexHome?: string;
+  tuttiCliPath?: string;
+  timeoutMs?: number;
+  runtime?: AgentDiscoveryRuntime;
+}): Promise<CodexImagegenCapability> {
+  if (!options.enabled) {
+    return detectCodexImagegenCapability({ enabled: false });
+  }
+  try {
+    const target = await resolveCodexAgentTarget({
+      ...(options.tuttiCliPath
+        ? { detectContext: { env: { TUTTI_CLI: options.tuttiCliPath } } }
+        : {}),
+      ...(options.runtime ? { runtime: options.runtime } : {}),
+    });
+    return detectCodexImagegenCapability({
+      enabled: true,
+      codexPath: target.executablePath,
+      ...(options.codexHome ? { codexHome: options.codexHome } : {}),
+      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+    });
+  } catch (error) {
+    return {
+      ready: false,
+      reasons: ["agent_target_unavailable"],
+      detail:
+        error instanceof Error
+          ? error.message
+          : "Configured Codex Agent Target is unavailable.",
+      ...(options.codexHome ? { codexHome: options.codexHome } : {}),
+      checkedAt: new Date().toISOString(),
+    };
+  }
 }
 
 function probeCodexImagegenCapability(options: {
@@ -249,9 +294,14 @@ function defaultRunCommand(
   args: readonly string[],
   options: { timeoutMs: number; env: NodeJS.ProcessEnv },
 ) {
-  return execFileSync(command, [...args], {
-    encoding: "utf8",
+  const invocation = resolveProcessInvocation({
+    command,
+    args,
     env: options.env,
+  });
+  return execFileSync(invocation.command, invocation.args, {
+    encoding: "utf8",
+    env: invocation.env,
     stdio: ["ignore", "pipe", "pipe"],
     timeout: options.timeoutMs,
   });

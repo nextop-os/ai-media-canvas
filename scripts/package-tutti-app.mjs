@@ -862,7 +862,10 @@ export async function assertNoSymlinks(root) {
   }
 }
 
-export async function validatePackageRoot(root) {
+export async function validatePackageRoot(
+  root,
+  { platform = process.platform } = {},
+) {
   for (const relativePath of REQUIRED_PACKAGE_FILES) {
     const absolutePath = path.join(root, relativePath);
     try {
@@ -878,7 +881,7 @@ export async function validatePackageRoot(root) {
   }
 
   const bootstrapStat = await stat(path.join(root, "bootstrap.sh"));
-  if ((bootstrapStat.mode & 0o111) === 0) {
+  if (platform !== "win32" && (bootstrapStat.mode & 0o111) === 0) {
     throw new Error("bootstrap.sh must be executable.");
   }
 
@@ -1030,9 +1033,21 @@ async function readSourceManifest() {
   );
 }
 
+function resolveBuildCommand(command, args) {
+  if (command !== "pnpm") {
+    return { command, args };
+  }
+  const pnpmCli = process.env.npm_execpath?.trim();
+  if (!pnpmCli) {
+    throw new Error("npm_execpath is required to run the package manager");
+  }
+  return { command: process.execPath, args: [pnpmCli, ...args] };
+}
+
 async function run(command, args, options = {}) {
   await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const resolved = resolveBuildCommand(command, args);
+    const child = spawn(resolved.command, resolved.args, {
       cwd: rootDir,
       stdio: "inherit",
       shell: false,
@@ -1053,7 +1068,8 @@ async function run(command, args, options = {}) {
 
 async function runCapture(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const resolved = resolveBuildCommand(command, args);
+    const child = spawn(resolved.command, resolved.args, {
       cwd: rootDir,
       shell: false,
       ...options,
@@ -1227,7 +1243,13 @@ async function bundleToolsMcpServer() {
 async function createZip(version) {
   const zipPath = path.join(buildRoot, `ai-media-canvas-${version}.zip`);
   await rm(zipPath, { force: true });
-  await run("zip", ["-qry", zipPath, "."], { cwd: packageRoot });
+  if (process.platform === "win32") {
+    await run("tar.exe", ["-a", "-c", "-f", zipPath, "."], {
+      cwd: packageRoot,
+    });
+  } else {
+    await run("zip", ["-qry", zipPath, "."], { cwd: packageRoot });
+  }
   return zipPath;
 }
 

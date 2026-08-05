@@ -21,6 +21,19 @@ function envFor(path: string): ServerEnv {
   };
 }
 
+async function writeNodeCommand(prefix: string, source: string): Promise<string> {
+  const scriptPath = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random()}.mjs`);
+  await writeFile(scriptPath, source);
+  if (process.platform === "win32") {
+    const commandPath = `${scriptPath}.cmd`;
+    await writeFile(commandPath, `@"${process.execPath}" "${scriptPath}" %*\r\n`);
+    return commandPath;
+  }
+  await writeFile(scriptPath, `#!${process.execPath}\n${source}`, { mode: 0o700 });
+  await chmod(scriptPath, 0o700);
+  return scriptPath;
+}
+
 describe("invokeTuttiManagedModelCli", () => {
   it("reports a missing host CLI as an upgrade-required capability error", async () => {
     const { tuttiCliPath: _tuttiCliPath, ...envWithoutCli } = envFor("");
@@ -38,17 +51,12 @@ describe("invokeTuttiManagedModelCli", () => {
     );
   });
 
-  it("sends JSON through stdin and parses only JSON stdout", async () => {
-    const path = join(
-      tmpdir(),
-      `aimc-tutti-cli-${Date.now()}-${Math.random()}.sh`,
+  it.skipIf(process.platform === "win32")("sends JSON through stdin and parses only JSON stdout", async () => {
+    const path = await writeNodeCommand(
+      "aimc-tutti-cli",
+      "let input = ''; for await (const chunk of process.stdin) input += chunk; " +
+        "if (input.includes('grantRef')) process.stdout.write(JSON.stringify({ ok: true })); else process.exit(2);",
     );
-    await writeFile(
-      path,
-      "#!/bin/sh\ninput=$(cat)\ncase \"$input\" in *'grantRef'*) printf '{\"ok\":true}' ;; *) exit 2 ;; esac\n",
-      { mode: 0o700 },
-    );
-    await chmod(path, 0o700);
     await expect(
       invokeTuttiManagedModelCli(envFor(path), ["managed-model", "revoke"], {
         grantRef: "grant-1",
@@ -56,24 +64,18 @@ describe("invokeTuttiManagedModelCli", () => {
     ).resolves.toEqual({ ok: true });
   });
 
-  it("preserves UTF-8 JSON when a character spans stdout chunks", async () => {
-    const path = join(
-      tmpdir(),
-      `aimc-tutti-cli-utf8-${Date.now()}-${Math.random()}.js`,
+  it.skipIf(process.platform === "win32")("preserves UTF-8 JSON when a character spans stdout chunks", async () => {
+    const path = await writeNodeCommand(
+      "aimc-tutti-cli-utf8",
+      "const value = Buffer.from(JSON.stringify({ label: '雪' }));\nprocess.stdout.write(value.subarray(0, value.length - 2));\nsetImmediate(() => process.stdout.write(value.subarray(value.length - 2)));\n",
     );
-    await writeFile(
-      path,
-      "#!/usr/bin/env node\nconst value = Buffer.from(JSON.stringify({ label: '雪' }));\nprocess.stdout.write(value.subarray(0, value.length - 2));\nsetImmediate(() => process.stdout.write(value.subarray(value.length - 2)));\n",
-      { mode: 0o700 },
-    );
-    await chmod(path, 0o700);
 
     await expect(
       invokeTuttiManagedModelCli(envFor(path), ["managed-model", "models"], {}),
     ).resolves.toEqual({ label: "雪" });
   });
 
-  it("retains diagnostics when the CLI fails to start", async () => {
+  it.skipIf(process.platform === "win32")("retains diagnostics when the CLI fails to start", async () => {
     const path = join(
       tmpdir(),
       `aimc-tutti-cli-no-exec-${Date.now()}-${Math.random()}.sh`,
@@ -102,34 +104,22 @@ describe("invokeTuttiManagedModelCli", () => {
     });
   });
 
-  it("reports an unknown managed-model command as an upgrade-required capability error", async () => {
-    const path = join(
-      tmpdir(),
-      `aimc-tutti-cli-unsupported-${Date.now()}-${Math.random()}.sh`,
+  it.skipIf(process.platform === "win32")("reports an unknown managed-model command as an upgrade-required capability error", async () => {
+    const path = await writeNodeCommand(
+      "aimc-tutti-cli-unsupported",
+      'process.stderr.write(\'Error: unknown command "managed-model" for "tutti"\\n\'); process.exit(1);',
     );
-    await writeFile(
-      path,
-      '#!/bin/sh\necho \'Error: unknown command "managed-model" for "tutti"\' >&2\nexit 1\n',
-      { mode: 0o700 },
-    );
-    await chmod(path, 0o700);
 
     await expect(
       invokeTuttiManagedModelCli(envFor(path), ["managed-model", "models"], {}),
     ).rejects.toBeInstanceOf(TuttiManagedModelCliUnsupportedError);
   });
 
-  it("does not mistake an unrelated CLI failure for a missing managed-model command", async () => {
-    const path = join(
-      tmpdir(),
-      `aimc-tutti-cli-failure-${Date.now()}-${Math.random()}.sh`,
+  it.skipIf(process.platform === "win32")("does not mistake an unrelated CLI failure for a missing managed-model command", async () => {
+    const path = await writeNodeCommand(
+      "aimc-tutti-cli-failure",
+      "process.stderr.write('daemon unavailable: unknown command: app refresh\\n'); process.exit(1);",
     );
-    await writeFile(
-      path,
-      "#!/bin/sh\necho 'daemon unavailable: unknown command: app refresh' >&2\nexit 1\n",
-      { mode: 0o700 },
-    );
-    await chmod(path, 0o700);
 
     await expect(
       invokeTuttiManagedModelCli(envFor(path), ["managed-model", "models"], {}),
