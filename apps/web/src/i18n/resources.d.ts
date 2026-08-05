@@ -203,8 +203,10 @@ export default interface Resources {
     "connectionReconnecting": "连接已断开，正在重连...",
     "conversation": "对话",
     "input": {
+      "addContent": "添加内容",
       "ariaLabel": "输入消息",
       "attachImages": "添加图片",
+      "browseReferences": "工作区资源",
       "cancel": "取消生成",
       "mentionEmpty": "无匹配项",
       "mentionLoading": "正在搜索...",
@@ -508,8 +510,10 @@ export default interface Resources {
       "title": "让创意设计更简单"
     },
     "prompt": {
+      "addContent": "添加内容",
       "ariaLabel": "提示词输入",
       "attachImages": "添加图片",
+      "browseReferences": "工作区资源",
       "clear": "清除",
       "linkExistingProject": "选择文件夹…",
       "modelPreference": "图片/视频模型",

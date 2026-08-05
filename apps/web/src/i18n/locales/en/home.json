@@ -129,8 +129,10 @@
     "title": "Make creative design easier"
   },
   "prompt": {
+    "addContent": "Add content",
     "ariaLabel": "Prompt input",
     "attachImages": "Attach images",
+    "browseReferences": "Workspace resources",
     "clear": "Clear",
     "linkExistingProject": "Choose folder…",
     "modelPreference": "Image/Video model",
