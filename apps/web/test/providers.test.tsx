@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { StrictMode, type ReactNode } from "react";
 import { cleanup, render } from "@testing-library/react";
+import { type ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const createMentionService = vi.hoisted(() => vi.fn());
@@ -12,10 +12,17 @@ vi.mock("@tutti-os/workspace-external-core/rich-text", () => ({
 }));
 
 vi.mock("@tutti-os/ui-rich-text/editor", () => ({
-  RichTextMentionServiceProvider: ({ children, service }: { children: ReactNode; service: unknown }) => {
+  RichTextMentionServiceProvider: ({
+    children,
+    service,
+  }: { children: ReactNode; service: unknown }) => {
     providedServices.push(service);
     return <>{children}</>;
   },
+}));
+
+vi.mock("@tutti-os/ui-system/components", () => ({
+  TooltipProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("next-themes", () => ({
@@ -46,14 +53,16 @@ describe("Providers mention service", () => {
 
     const view = render(
       <StrictMode>
-        <Providers><div>canvas</div></Providers>
+        <Providers>
+          <div>canvas</div>
+        </Providers>
       </StrictMode>,
     );
 
     expect(createMentionService).toHaveBeenCalledTimes(2);
     expect(createMentionService).toHaveBeenLastCalledWith({
       getBridge: expect.any(Function),
-      providerIds: ["workspace-app", "agent-target"],
+      providerIds: ["file"],
     });
     expect(first.dispose).toHaveBeenCalledTimes(1);
     expect(providedServices.at(-1)).toBe(second);

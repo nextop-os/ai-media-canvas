@@ -81,14 +81,9 @@ export const TuttiRichTextInput = forwardRef<
   >(
     () => [
       {
-        id: "apps",
-        label: t("input.mentionPaletteApps"),
-        providerIds: ["workspace-app"],
-      },
-      {
-        id: "agents",
-        label: t("input.mentionPaletteAgents"),
-        providerIds: ["agent-target"],
+        id: "files",
+        label: t("input.mentionPaletteFiles"),
+        providerIds: ["file"],
       },
     ],
     [t],
@@ -161,7 +156,15 @@ export const TuttiRichTextInput = forwardRef<
         minQueryLength={0}
         palette={{
           categories: mentionPaletteCategories,
-          defaultCategoryId: "agents",
+          defaultCategoryId: "files",
+          directoryNavigation: {
+            providerId: "file",
+            labels: {
+              back: t("input.mentionPaletteBack"),
+              enter: t("input.mentionPaletteEnterFolder"),
+              navigateHierarchy: t("input.mentionPaletteNavigateHierarchy"),
+            },
+          },
           labels: {
             tabHint: t("input.mentionPaletteTabHint"),
             cycleFilter: t("input.mentionPaletteCycleFilter"),
