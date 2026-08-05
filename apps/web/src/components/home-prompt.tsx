@@ -17,6 +17,7 @@ import { AgentModelSelector } from "@/components/agent-model-selector";
 import { ImageAttachmentBar } from "@/components/image-attachment-bar";
 import { ImageModelPreferencePopover } from "@/components/image-model-preference";
 import { SettingsDialog } from "@/components/settings-dialog";
+import { TuttiReferenceAddControl } from "@/components/tutti-reference-add-control";
 import {
   TuttiRichTextInput,
   type TuttiRichTextInputHandle,
@@ -56,11 +57,6 @@ type HomePromptProps = {
 };
 
 const toolbarButtons = [
-  {
-    name: "Attach",
-    viewBox: "0 0 24 24",
-    path: "M16 1.1A4.9 4.9 0 0 1 20.9 6a4.9 4.9 0 0 1-1.429 3.457h.001l-8.414 8.587-.007.006a2.9 2.9 0 0 1-3.887.193l-.213-.192a2.9 2.9 0 0 1-.007-4.095l8.414-8.586a.9.9 0 0 1 1.286 1.26L8.23 15.216l-.007.006a1.1 1.1 0 0 0 1.556 1.555l8.407-8.579.007-.007a3.1 3.1 0 0 0 .105-4.271l-.105-.112a3.1 3.1 0 0 0-4.384 0L5.4 12.387l-.007.006a5.1 5.1 0 0 0 7.214 7.213l7.749-7.934a.9.9 0 0 1 1.288 1.256l-7.753 7.938q-.005.007-.012.014a6.9 6.9 0 0 1-9.758-9.76l8.408-8.578.007-.007A4.9 4.9 0 0 1 16 1.1",
-  },
   {
     name: "Agent",
     viewBox: "0 0 24 24",
@@ -236,8 +232,6 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
         setSubmitting(false);
       }
     }, [
-      agentModel,
-      agentModelSource,
       attachments,
       disabled,
       ensureAgentModelConfigured,
@@ -360,23 +354,24 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
                       }
                     }}
                   />
-                  <button
-                    type="button"
-                    aria-label={t("prompt.attachImages")}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="group relative flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox={toolbarButtons[0].viewBox}
-                      className="h-4 w-4 fill-current"
-                    >
-                      <path d={toolbarButtons[0].path} />
-                    </svg>
-                    <PromptToolbarTooltip label={t("prompt.attachImages")} />
-                  </button>
                 </>
               ) : null}
+
+              <TuttiReferenceAddControl
+                className="group relative flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                disabled={Boolean(disabled || isUploading || submitting)}
+                labels={{
+                  addContent: t("prompt.addContent"),
+                  browseReferences: t("prompt.browseReferences"),
+                  uploadFile: t("prompt.attachImages"),
+                }}
+                tooltipPlacement="bottom"
+                value={value}
+                onChange={setValue}
+                {...(onAddFiles
+                  ? { onUploadFile: () => fileInputRef.current?.click() }
+                  : {})}
+              />
 
               <ImageModelPreferencePopover
                 open={modelPopoverOpen}
@@ -390,10 +385,10 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
                   >
                     <svg
                       aria-hidden="true"
-                      viewBox={toolbarButtons[1].viewBox}
+                      viewBox={toolbarButtons[0].viewBox}
                       className="h-4 w-4 fill-current"
                     >
-                      <path d={toolbarButtons[1].path} />
+                      <path d={toolbarButtons[0].path} />
                     </svg>
                     <PromptToolbarTooltip label={t("prompt.modelPreference")} />
                   </button>

@@ -129,8 +129,10 @@
     "title": "Make creative design easier"
   },
   "prompt": {
+    "addContent": "Add content",
     "ariaLabel": "Prompt input",
     "attachImages": "Attach images",
+    "browseReferences": "Browse files and app outputs",
     "clear": "Clear",
     "modelPreference": "Image/Video model",
     "placeholder": "Ask AI Canvas to design...",

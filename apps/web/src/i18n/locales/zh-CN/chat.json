@@ -40,8 +40,10 @@
   "connectionReconnecting": "连接已断开，正在重连...",
   "conversation": "对话",
   "input": {
+    "addContent": "添加内容",
     "ariaLabel": "输入消息",
     "attachImages": "添加图片",
+    "browseReferences": "浏览文件和应用产物",
     "cancel": "取消生成",
     "mentionEmpty": "无匹配项",
     "mentionLoading": "正在搜索...",

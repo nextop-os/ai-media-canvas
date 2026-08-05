@@ -40,8 +40,10 @@
   "connectionReconnecting": "Connection lost. Reconnecting...",
   "conversation": "Conversation",
   "input": {
+    "addContent": "Add content",
     "ariaLabel": "Message input",
     "attachImages": "Attach images",
+    "browseReferences": "Browse files and app outputs",
     "cancel": "Cancel generation",
     "mentionEmpty": "No matches",
     "mentionLoading": "Searching...",
