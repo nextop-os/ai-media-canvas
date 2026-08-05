@@ -769,6 +769,7 @@ describe("POST /tutti/references/search", () => {
     });
     expect(store.updateProject(project.id, { name: "   " })).toEqual({
       ok: true,
+      workspaceRoot: null,
     });
     const app = buildApp({ env: { dataRoot } });
 

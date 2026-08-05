@@ -123,6 +123,13 @@ export type LocalAgentRuntimeProviderDeps = {
     runId: string;
     runtimeProvider: AgentRuntimeProvider;
   }) => Promise<string>;
+  /**
+   * TSH: return the durable user project directory used as local-agent cwd.
+   * When set, the runtime must not delete it after the run.
+   */
+  resolveProjectWorkspaceRoot?: (input: {
+    canvasId?: string;
+  }) => Promise<string | null> | string | null;
   loadCanvasSummaryForRuntime: LoadCanvasSummaryForRuntime;
   loadSessionMessages?: (sessionId: string) => Promise<ChatMessage[]>;
   localAgentRuntime: Pick<

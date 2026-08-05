@@ -22,6 +22,10 @@ import {
   createVideoGenerateTool,
 } from "./video-generate.js";
 import {
+  type SetProjectTitleFn,
+  createSetProjectTitleTool,
+} from "./set-project-title.js";
+import {
   type ApplyWorkspaceSettingsPatch,
   type ReadWorkspaceSettings,
   createGetWorkspaceSettingsTool,
@@ -32,6 +36,7 @@ export { createImageGenerateTool } from "./image-generate.js";
 export { createVideoGenerateTool } from "./video-generate.js";
 export { createInspectCanvasTool } from "./inspect-canvas.js";
 export { createManipulateCanvasTool } from "./manipulate-canvas.js";
+export { createSetProjectTitleTool } from "./set-project-title.js";
 export {
   createGetWorkspaceSettingsTool,
   createUpdateWorkspaceSettingsTool,
@@ -74,6 +79,7 @@ export function createMainAgentTools(
     getWorkspaceSettings?: ReadWorkspaceSettings;
     persistImage?: PersistImageFn;
     sandboxDir?: string;
+    setProjectTitle?: SetProjectTitleFn;
     submitImageJob?: SubmitImageJobFn;
     submitVideoJob?: SubmitVideoJobFn;
     updateWorkspaceSettings?: ApplyWorkspaceSettingsPatch;
@@ -103,6 +109,13 @@ export function createMainAgentTools(
   ];
   if (deps.brandKitId) {
     tools.push(createBrandKitTool(deps, deps.brandKitId));
+  }
+  if (deps.setProjectTitle) {
+    tools.push(
+      createSetProjectTitleTool({
+        setProjectTitle: deps.setProjectTitle,
+      }),
+    );
   }
   if (deps.getWorkspaceSettings) {
     tools.push(

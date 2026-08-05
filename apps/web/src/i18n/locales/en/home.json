@@ -134,9 +134,13 @@
     "attachImages": "Attach images",
     "browseReferences": "Workspace resources",
     "clear": "Clear",
+    "linkExistingProject": "Choose folder…",
     "modelPreference": "Image/Video model",
+    "parentPathHint": "Choose where to create the project folder under /workspace",
+    "parentPathLabel": "Project folder",
     "placeholder": "Ask AI Canvas to design...",
-    "submit": "Submit prompt"
+    "submit": "Submit prompt",
+    "workspaceRoot": "Workspace"
   },
   "recentProjects": {
     "archive": "Archive {{name}}",

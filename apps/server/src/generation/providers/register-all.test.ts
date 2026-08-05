@@ -109,6 +109,28 @@ describe("registerAllProviders", () => {
     );
   });
 
+  it("defers Codex capability resolution to the configured Tutti Agent Target", () => {
+    const detectCodexImagegenCapability = vi.fn(() => {
+      throw new Error("PATH-based detection must not run in a Tutti workspace");
+    });
+
+    registerAllProviders(
+      loadServerEnv(
+        { tuttiCliPath: "C:\\Program Files\\Tutti\\tutti.exe" },
+        {},
+      ),
+      { detectCodexImagegenCapability },
+    );
+
+    expect(detectCodexImagegenCapability).not.toHaveBeenCalled();
+    expect(getAvailableImageModels()).toContainEqual(
+      expect.objectContaining({
+        id: "codex/gpt-image-2",
+        provider: "codex-imagegen",
+      }),
+    );
+  });
+
   it("orders Codex Imagegen before API-backed image models when ready", () => {
     registerAllProviders(loadServerEnv({ kieApiKey: "test-kie-key" }, {}), {
       detectCodexImagegenCapability: () => ({

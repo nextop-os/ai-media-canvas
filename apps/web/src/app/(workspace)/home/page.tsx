@@ -35,6 +35,8 @@ import {
   type HomeExampleSelection,
   homeExampleSeedCategories,
 } from "@/lib/home-example-seeds";
+import { fetchHealth } from "@/lib/fetch-health";
+import { toRuntimeAssetUrl } from "@/lib/local-assets";
 import { formatProjectName } from "@/lib/project-display";
 import { fetchProjects } from "@/lib/server-api";
 import { formatDate } from "@/lib/utils";
@@ -78,6 +80,8 @@ export default function HomePage() {
   const { create: createNewProject, creating } = useCreateProject();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [tshWorkspaceApp, setTshWorkspaceApp] = useState(false);
+  const [parentPath, setParentPath] = useState("/workspace");
   const [homeDiscoveryCategories, setHomeDiscoveryCategories] = useState(
     homeDiscoverySeedCategories,
   );
@@ -89,6 +93,8 @@ export default function HomePage() {
 
   const promptRef = useRef<HomePromptHandle>(null);
   const hasInitialized = useRef(false);
+  const parentPathRef = useRef(parentPath);
+  parentPathRef.current = parentPath;
 
   const {
     attachments: imageAttachments,
@@ -144,6 +150,38 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchHealth()
+      .then((health) => {
+        if (cancelled) return;
+        const enabled = health.tshWorkspaceApp === true;
+        setTshWorkspaceApp(enabled);
+        if (enabled) {
+          setParentPath(health.defaultParentPath?.trim() || "/workspace");
+        }
+      })
+      .catch((error) => {
+        console.warn("[home] failed to load health snapshot", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const createWithParentPath = useCallback(
+    (opts?: Parameters<typeof createNewProject>[0]) => {
+      const nextParentPath = tshWorkspaceApp
+        ? parentPathRef.current.trim() || "/workspace"
+        : undefined;
+      createNewProject({
+        ...opts,
+        ...(nextParentPath ? { parentPath: nextParentPath } : {}),
+      });
+    },
+    [createNewProject, tshWorkspaceApp],
+  );
+
   const handlePromptSubmit = useCallback(
     (
       prompt: string,
@@ -155,7 +193,7 @@ export default function HomePage() {
     ) => {
       setSelectedExample(null);
       clearAttachments();
-      createNewProject({
+      createWithParentPath({
         prompt,
         ...(attachments && attachments.length > 0 ? { attachments } : {}),
         ...(imageGenerationPreference ? { imageGenerationPreference } : {}),
@@ -164,7 +202,7 @@ export default function HomePage() {
         ...(model && modelSource ? { modelSource } : {}),
       });
     },
-    [clearAttachments, createNewProject],
+    [clearAttachments, createWithParentPath],
   );
 
   const handleExampleSelect = useCallback((selection: HomeExampleSelection) => {
@@ -233,6 +271,9 @@ export default function HomePage() {
             readyAttachments={readyAttachments}
             selectedSeed={selectedExample}
             onClearSelectedSeed={handleExampleClear}
+            showParentPath={tshWorkspaceApp}
+            parentPath={parentPath}
+            onParentPathChange={setParentPath}
           />
         </motion.div>
 
@@ -291,7 +332,7 @@ export default function HomePage() {
               whileTap={{ scale: 0.98 }}
               type="button"
               disabled={creating}
-              onClick={() => createNewProject()}
+              onClick={() => createWithParentPath()}
               className="aspect-[286/208] cursor-pointer rounded-xl bg-card p-2 shadow-card transition-shadow duration-300 hover:shadow-md sm:rounded-2xl sm:p-3"
             >
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-xl bg-muted sm:gap-3">
@@ -345,7 +386,11 @@ export default function HomePage() {
                   </button>
 
                   <ProjectThumbnailPreview
-                    src={project.thumbnailUrl}
+                    src={
+                      project.thumbnailUrl
+                        ? toRuntimeAssetUrl(project.thumbnailUrl)
+                        : null
+                    }
                     alt={projectName}
                     previewLabel={t("recentProjects.previewCover", {
                       name: projectName,

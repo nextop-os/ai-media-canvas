@@ -38,6 +38,10 @@ import {
   createVideoGenerateTool,
 } from "../tools/video-generate.js";
 import {
+  type SetProjectTitleFn,
+  createSetProjectTitleTool,
+} from "../tools/set-project-title.js";
+import {
   type ApplyWorkspaceSettingsPatch,
   type ReadWorkspaceSettings,
   buildWorkspaceSettingsSnapshot,
@@ -103,6 +107,7 @@ type CreateLocalToolGatewayOptions = {
     patch: Pick<WorkspaceSettings, "codexImagegenDelegation">;
     userId?: string;
   }) => Promise<{ codexImagegenDelegation: CodexImagegenDelegationSetting }>;
+  setProjectTitle?: SetProjectTitleFn;
 };
 
 const TOOL_NAME_ALIASES = new Map<string, string>([
@@ -582,6 +587,14 @@ export function createLocalToolGatewayService(
         applyPatch: applyWorkspaceSettingsPatch,
       }) as unknown as StructuredToolLike,
     ];
+
+    if (options.setProjectTitle) {
+      tools.push(
+        createSetProjectTitleTool({
+          setProjectTitle: options.setProjectTitle,
+        }) as unknown as StructuredToolLike,
+      );
+    }
 
     if (session.backendFactory) {
       tools.unshift(

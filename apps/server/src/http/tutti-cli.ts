@@ -88,6 +88,7 @@ const openCliBodySchema = z.object({
 const projectCreateCliBodySchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1).optional(),
+  "parent-path": z.string().min(1).optional(),
 });
 const canvasSaveCliBodySchema = z.object({
   "canvas-id": z.string().min(1),
@@ -263,9 +264,14 @@ export async function registerTuttiCliRoutes(
   route(
     "/tutti/cli/projects/create",
     async (body) => {
-      const payload = projectCreateRequestSchema.parse(
-        projectCreateCliBodySchema.parse(body),
-      );
+      const parsed = projectCreateCliBodySchema.parse(body);
+      const payload = projectCreateRequestSchema.parse({
+        name: parsed.name,
+        ...(parsed.description ? { description: parsed.description } : {}),
+        ...(parsed["parent-path"]
+          ? { parentPath: parsed["parent-path"] }
+          : {}),
+      });
       return options.projectOperations.createProject(payload);
     },
     201,

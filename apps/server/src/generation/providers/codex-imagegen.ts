@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { resolveProcessInvocation } from "@tutti-os/agent-acp-kit/process-adapter";
 
 import type {
   GeneratedImage,
@@ -22,6 +23,7 @@ import type {
   ModelInfo,
 } from "../types.js";
 import { GenerationError, aspectRatioToDimensions } from "../utils.js";
+import type { CodexImagegenCapability } from "./codex-imagegen-capability.js";
 
 const ICON_CODEX = "https://github.com/openai.png";
 const DEFAULT_CODEX_TIMEOUT_MS = 10 * 60_000;
@@ -57,6 +59,8 @@ export interface CodexImagegenProviderOptions {
   agentModel?: string;
   timeoutMs?: number;
   execCodex?: CodexImagegenExec;
+  createExecCodex?: (command: string) => CodexImagegenExec;
+  resolveCapability?: () => Promise<CodexImagegenCapability>;
 }
 
 export class CodexImagegenProvider implements ImageProvider {
@@ -66,7 +70,11 @@ export class CodexImagegenProvider implements ImageProvider {
   private readonly codexHome: string | undefined;
   private readonly agentModel: string;
   private readonly timeoutMs: number;
-  private readonly execCodex: CodexImagegenExec;
+  private readonly execCodex: CodexImagegenExec | undefined;
+  private readonly createExecCodex: (command: string) => CodexImagegenExec;
+  private readonly resolveCapability:
+    | (() => Promise<CodexImagegenCapability>)
+    | undefined;
 
   constructor(options: CodexImagegenProviderOptions = {}) {
     this.codexPath = options.codexPath ?? "codex";
@@ -75,7 +83,9 @@ export class CodexImagegenProvider implements ImageProvider {
       options.agentModel ?? DEFAULT_CODEX_IMAGEGEN_AGENT_MODEL,
     );
     this.timeoutMs = options.timeoutMs ?? DEFAULT_CODEX_TIMEOUT_MS;
-    this.execCodex = options.execCodex ?? defaultExecCodex(this.codexPath);
+    this.execCodex = options.execCodex;
+    this.createExecCodex = options.createExecCodex ?? defaultExecCodex;
+    this.resolveCapability = options.resolveCapability;
   }
 
   async generate(params: ImageGenerateParams): Promise<GeneratedImage> {
@@ -103,6 +113,16 @@ export class CodexImagegenProvider implements ImageProvider {
         `Codex Imagegen supports at most ${CODEX_IMAGEGEN_MAX_INPUT_IMAGES} reference images.`,
       );
     }
+    const capability = await this.resolveCapability?.();
+    if (capability && (!capability.ready || !capability.codexPath)) {
+      throw new GenerationError(
+        this.name,
+        "provider_unavailable",
+        `Configured Codex Agent Target is unavailable: ${capability.detail ?? capability.reasons.join(", ")}`,
+      );
+    }
+    const codexPath = capability?.codexPath ?? this.codexPath;
+    const execCodex = this.execCodex ?? this.createExecCodex(codexPath);
 
     const aspectRatio = params.aspectRatio ?? "1:1";
     const dimensions = params.size
@@ -151,7 +171,7 @@ export class CodexImagegenProvider implements ImageProvider {
         agentModel: this.agentModel,
         sandbox: "workspace-write",
       });
-      const result = await this.execCodex(
+      const result = await execCodex(
         [
           "exec",
           "--ignore-user-config",
@@ -518,9 +538,14 @@ export function parsePngDimensions(buffer: Buffer) {
 
 function defaultExecCodex(command: string): CodexImagegenExec {
   return async (args, options) => {
-    const child = spawn(command, [...args], {
-      cwd: options.cwd,
+    const invocation = resolveProcessInvocation({
+      command,
+      args,
       env: options.env,
+    });
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: options.cwd,
+      env: invocation.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

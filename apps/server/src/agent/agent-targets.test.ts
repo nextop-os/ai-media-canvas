@@ -5,6 +5,7 @@ import {
   AgentTargetResolutionError,
   detectAgentTargets,
   resolveAgentTargetFromCatalog,
+  resolveCodexAgentTarget,
 } from "./agent-targets.js";
 
 function target(
@@ -155,5 +156,77 @@ describe("detectAgentTargets", () => {
         reason: "Provider authentication is required.",
       }),
     ]);
+  });
+});
+
+describe("resolveCodexAgentTarget", () => {
+  const runtimeFor = (detections: Array<Record<string, unknown>>) => ({
+    cancel: async () => undefined,
+    detect: async () => detections,
+    listProviders: () => [
+      { id: "codex", displayName: "Codex", kind: "local-agent" as const },
+    ],
+    run: async function* () {
+      yield* [];
+    },
+  });
+
+  it("uses the configured default Codex target and its exact executable", async () => {
+    const result = await resolveCodexAgentTarget({
+      runtime: runtimeFor([
+        {
+          agentTargetId: "team:writer",
+          executablePath: "C:\\Program Files\\Tutti Agents\\codex.exe",
+          provider: "codex",
+          displayName: "Writer",
+          authState: "ok",
+          models: [],
+          supported: true,
+          isDefault: true,
+        },
+        {
+          agentTargetId: "team:reviewer",
+          executablePath: "D:\\Agents\\codex.exe",
+          provider: "codex",
+          displayName: "Reviewer",
+          authState: "ok",
+          models: [],
+          supported: true,
+        },
+      ]) as never,
+    });
+
+    expect(result).toEqual({
+      agentTargetId: "team:writer",
+      providerId: "codex",
+      executablePath: "C:\\Program Files\\Tutti Agents\\codex.exe",
+    });
+  });
+
+  it("fails closed when multiple Codex targets have no configured default", async () => {
+    await expect(
+      resolveCodexAgentTarget({
+        runtime: runtimeFor([
+          {
+            agentTargetId: "team:writer",
+            executablePath: "C:\\Agents\\writer.exe",
+            provider: "codex",
+            displayName: "Writer",
+            authState: "ok",
+            models: [],
+            supported: true,
+          },
+          {
+            agentTargetId: "team:reviewer",
+            executablePath: "C:\\Agents\\reviewer.exe",
+            provider: "codex",
+            displayName: "Reviewer",
+            authState: "ok",
+            models: [],
+            supported: true,
+          },
+        ]) as never,
+      }),
+    ).rejects.toThrow("configure one as the default target");
   });
 });

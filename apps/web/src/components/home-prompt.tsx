@@ -16,6 +16,7 @@ import {
 import { AgentModelSelector } from "@/components/agent-model-selector";
 import { ImageAttachmentBar } from "@/components/image-attachment-bar";
 import { ImageModelPreferencePopover } from "@/components/image-model-preference";
+import { ParentPathPicker } from "@/components/parent-path-picker";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TuttiReferenceAddControl } from "@/components/tutti-reference-add-control";
 import {
@@ -54,6 +55,10 @@ type HomePromptProps = {
   readyAttachments?: ReadyAttachment[];
   selectedSeed?: HomeExampleSelection | null;
   onClearSelectedSeed?: () => void;
+  /** TSH: show project parent-directory picker next to the agent selector. */
+  showParentPath?: boolean;
+  parentPath?: string;
+  onParentPathChange?: (value: string) => void;
 };
 
 const toolbarButtons = [
@@ -120,6 +125,9 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
       readyAttachments,
       selectedSeed,
       onClearSelectedSeed,
+      showParentPath,
+      parentPath,
+      onParentPathChange,
     },
     ref,
   ) {
@@ -398,6 +406,22 @@ export const HomePrompt = forwardRef<HomePromptHandle, HomePromptProps>(
               <div className="ml-1">
                 <AgentModelSelector compact tooltipPlacement="bottom" />
               </div>
+
+              {showParentPath ? (
+                <div className="ml-1">
+                  <ParentPathPicker
+                    disabled={disabled || submitting}
+                    linkExistingLabel={t("prompt.linkExistingProject")}
+                    parentPath={parentPath ?? "/workspace"}
+                    placeholder={t("prompt.parentPathLabel")}
+                    title={t("prompt.parentPathHint")}
+                    workspaceRootLabel={t("prompt.workspaceRoot")}
+                    onParentPathChange={(value) =>
+                      onParentPathChange?.(value)
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
 
             <button

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { join } from "node:path";
 
 import {
   type CodexImagegenCommandRunner,
   clearCodexImagegenCapabilityCache,
   compareSemver,
   detectCodexImagegenCapability,
+  detectConfiguredCodexImagegenCapability,
   parseCodexVersion,
 } from "./codex-imagegen-capability.js";
 
@@ -75,12 +77,13 @@ describe("detectCodexImagegenCapability", () => {
   });
 
   it("reports ready when all probes pass", () => {
+    const codexHome = join("tmp", "codex-home");
     const capability = detectCodexImagegenCapability({
       enabled: true,
       cacheTtlMs: 0,
-      codexHome: "/tmp/codex-home",
+      codexHome,
       runCommand: createReadyRunner(),
-      fileExists: (path) => path === "/tmp/codex-home/auth.json",
+      fileExists: (path) => path === join(codexHome, "auth.json"),
       readFile: () =>
         JSON.stringify({ tokens: { access_token: "access-token" } }),
     });
@@ -89,7 +92,7 @@ describe("detectCodexImagegenCapability", () => {
       ready: true,
       reasons: [],
       codexVersion: "0.124.0",
-      codexHome: "/tmp/codex-home",
+      codexHome,
     });
   });
 
@@ -182,6 +185,88 @@ describe("detectCodexImagegenCapability", () => {
       ready: false,
       reasons: ["image_generation_unavailable", "fast_mode_unavailable"],
     });
+  });
+});
+
+describe("detectConfiguredCodexImagegenCapability", () => {
+  it("passes the configured Tutti CLI to target discovery", async () => {
+    let detectedEnv: NodeJS.ProcessEnv | undefined;
+    const runtime = {
+      cancel: async () => undefined,
+      detect: async (context?: { env?: NodeJS.ProcessEnv }) => {
+        detectedEnv = context?.env;
+        return [
+          {
+            agentTargetId: "local:codex",
+            executablePath: join(process.cwd(), "__missing-codex-test-binary__"),
+            provider: "codex",
+            displayName: "Codex",
+            authState: "ok",
+            models: [],
+            supported: true,
+          },
+        ];
+      },
+      listProviders: () => [
+        { id: "codex", displayName: "Codex", kind: "local-agent" as const },
+      ],
+      run: async function* () {
+        yield* [];
+      },
+    };
+
+    await detectConfiguredCodexImagegenCapability({
+      enabled: true,
+      tuttiCliPath: String.raw`C:\Program Files\Tutti\tutti.exe`,
+      runtime: runtime as never,
+    });
+
+    expect(detectedEnv?.TUTTI_CLI).toBe(
+      String.raw`C:\Program Files\Tutti\tutti.exe`,
+    );
+  });
+
+  it("preserves the target-selection error when Codex targets are ambiguous", async () => {
+    const runtime = {
+      cancel: async () => undefined,
+      detect: async () => [
+        {
+          agentTargetId: "team:writer",
+          executablePath: String.raw`C:\Agents\writer.exe`,
+          provider: "codex",
+          displayName: "Writer",
+          authState: "ok",
+          models: [],
+          supported: true,
+        },
+        {
+          agentTargetId: "team:reviewer",
+          executablePath: String.raw`C:\Agents\reviewer.exe`,
+          provider: "codex",
+          displayName: "Reviewer",
+          authState: "ok",
+          models: [],
+          supported: true,
+        },
+      ],
+      listProviders: () => [
+        { id: "codex", displayName: "Codex", kind: "local-agent" as const },
+      ],
+      run: async function* () {
+        yield* [];
+      },
+    };
+
+    const capability = await detectConfiguredCodexImagegenCapability({
+      enabled: true,
+      runtime: runtime as never,
+    });
+
+    expect(capability).toMatchObject({
+      ready: false,
+      reasons: ["agent_target_unavailable"],
+    });
+    expect(capability.detail).toContain("configure one as the default target");
   });
 });
 

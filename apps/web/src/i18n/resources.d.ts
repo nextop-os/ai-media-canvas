@@ -515,9 +515,13 @@ export default interface Resources {
       "attachImages": "添加图片",
       "browseReferences": "工作区资源",
       "clear": "清除",
+      "linkExistingProject": "选择文件夹…",
       "modelPreference": "图片/视频模型",
+      "parentPathHint": "选择项目文件夹创建在 /workspace 下的位置",
+      "parentPathLabel": "项目目录",
       "placeholder": "让 AI Canvas 帮你设计...",
-      "submit": "提交 prompt"
+      "submit": "提交 prompt",
+      "workspaceRoot": "工作区"
     },
     "recentProjects": {
       "archive": "归档 {{name}}",

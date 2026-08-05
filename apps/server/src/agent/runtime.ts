@@ -472,6 +472,9 @@ type CreateAgentRuntimeOptions = {
   model?: BaseLanguageModel | string;
   now?: () => string;
   patchWorkspaceSettings?: PatchWorkspaceSettings;
+  resolveProjectWorkspaceRoot?: (input: {
+    canvasId?: string;
+  }) => Promise<string | null> | string | null;
   runIdFactory?: () => string;
   tierGuard?: TierGuard;
   toolGateway?: ReturnType<typeof createLocalToolGatewayService>;
@@ -615,6 +618,12 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
               loadCanvasSummaryForRuntime,
               ...(options.loadSessionMessages
                 ? { loadSessionMessages: options.loadSessionMessages }
+                : {}),
+              ...(options.resolveProjectWorkspaceRoot
+                ? {
+                    resolveProjectWorkspaceRoot:
+                      options.resolveProjectWorkspaceRoot,
+                  }
                 : {}),
               localAgentRuntime,
               now,
@@ -1141,8 +1150,29 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             }
           }
 
+          let projectId: string | undefined;
+          if (canvasId) {
+            try {
+              const { data: canvas } = await client
+                .from("canvases")
+                .select("project_id")
+                .eq("id", canvasId)
+                .maybeSingle();
+              const resolved = recordOrNull(canvas)?.project_id;
+              if (typeof resolved === "string" && resolved) {
+                projectId = resolved;
+              }
+            } catch (error) {
+              console.warn(
+                "[submitImageJob] failed to resolve projectId from canvas:",
+                error,
+              );
+            }
+          }
+
           const job = await jobSvc.createJob(user, {
             workspaceId,
+            ...(projectId ? { projectId } : {}),
             ...(canvasId ? { canvasId } : {}),
             ...(sessionId ? { sessionId } : {}),
             jobType: "image_generation",
@@ -1385,8 +1415,29 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
             }
           }
 
+          let projectId: string | undefined;
+          if (canvasId) {
+            try {
+              const { data: canvas } = await client
+                .from("canvases")
+                .select("project_id")
+                .eq("id", canvasId)
+                .maybeSingle();
+              const resolved = recordOrNull(canvas)?.project_id;
+              if (typeof resolved === "string" && resolved) {
+                projectId = resolved;
+              }
+            } catch (error) {
+              console.warn(
+                "[submitVideoJob] failed to resolve projectId from canvas:",
+                error,
+              );
+            }
+          }
+
           const job = await jobSvc.createJob(user, {
             workspaceId,
+            ...(projectId ? { projectId } : {}),
             ...(canvasId ? { canvasId } : {}),
             ...(sessionId ? { sessionId } : {}),
             jobType: "video_generation",
