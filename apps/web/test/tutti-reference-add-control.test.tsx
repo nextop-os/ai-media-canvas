@@ -1,13 +1,10 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import {
-  cleanup,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TuttiReferenceAddControl } from "../src/components/tutti-reference-add-control";
@@ -15,7 +12,59 @@ import { TuttiReferenceAddControl } from "../src/components/tutti-reference-add-
 describe("TuttiReferenceAddControl", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     Reflect.deleteProperty(window, "tuttiExternal");
+  });
+
+  it("keeps hydration stable before enabling host references", async () => {
+    const hostWindow = window;
+    const props = {
+      labels: {
+        addContent: "Add content",
+        browseReferences: "Workspace resources",
+        uploadFile: "Upload file",
+      },
+      value: "",
+      onChange: vi.fn(),
+      onUploadFile: vi.fn(),
+    };
+
+    vi.stubGlobal("window", undefined);
+    const serverMarkup = renderToString(
+      <TuttiReferenceAddControl {...props} />,
+    );
+
+    vi.stubGlobal("window", hostWindow);
+    Object.defineProperty(window, "tuttiExternal", {
+      configurable: true,
+      value: {
+        references: {
+          select: vi.fn().mockResolvedValue([]),
+        },
+      },
+    });
+    const container = document.createElement("div");
+    container.innerHTML = serverMarkup;
+    document.body.append(container);
+
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const root = hydrateRoot(
+      container,
+      <TuttiReferenceAddControl {...props} />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Add content" }),
+      ).toBeInTheDocument();
+    });
+    expect(consoleError).not.toHaveBeenCalled();
+
+    await act(() => root.unmount());
+    container.remove();
+    consoleError.mockRestore();
   });
 
   it("appends selected files and application outputs to the prompt", async () => {

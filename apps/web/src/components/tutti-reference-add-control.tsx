@@ -3,6 +3,7 @@
 import type { TuttiExternalBridge } from "@tutti-os/workspace-external-core/contracts";
 import { appendTuttiExternalReferenceSelections } from "@tutti-os/workspace-external-core/rich-text";
 import { WorkspaceReferenceAddControl } from "@tutti-os/workspace-file-reference/ui";
+import { useEffect, useState } from "react";
 
 export function TuttiReferenceAddControl(props: {
   className?: string;
@@ -17,7 +18,11 @@ export function TuttiReferenceAddControl(props: {
   onChange: (value: string) => void;
   onUploadFile?: () => void;
 }) {
-  const references = getTuttiBridge()?.references;
+  const [references, setReferences] =
+    useState<Partial<TuttiExternalBridge>["references"]>();
+  useEffect(() => {
+    setReferences(getTuttiBridge()?.references);
+  }, []);
   const selectReferences = references?.select;
 
   if (!selectReferences && !props.onUploadFile) return null;
