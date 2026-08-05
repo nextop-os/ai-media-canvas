@@ -3,11 +3,11 @@
 import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
-  fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TuttiReferenceAddControl } from "../src/components/tutti-reference-add-control";
@@ -45,6 +45,8 @@ describe("TuttiReferenceAddControl", () => {
       },
     });
     const onChange = vi.fn();
+    const onUploadFile = vi.fn();
+    const user = userEvent.setup();
 
     render(
       <TuttiReferenceAddControl
@@ -55,10 +57,14 @@ describe("TuttiReferenceAddControl", () => {
         }}
         value="Use these"
         onChange={onChange}
+        onUploadFile={onUploadFile}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add content" }));
+    await user.click(screen.getByRole("button", { name: "Add content" }));
+    await user.click(
+      screen.getByRole("menuitem", { name: "Browse references" }),
+    );
 
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith(
