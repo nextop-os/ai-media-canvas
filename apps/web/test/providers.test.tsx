@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { StrictMode, type ReactNode } from "react";
 import { cleanup, render } from "@testing-library/react";
+import { type ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const createMentionService = vi.hoisted(() => vi.fn());
@@ -12,10 +12,17 @@ vi.mock("@tutti-os/workspace-external-core/rich-text", () => ({
 }));
 
 vi.mock("@tutti-os/ui-rich-text/editor", () => ({
-  RichTextMentionServiceProvider: ({ children, service }: { children: ReactNode; service: unknown }) => {
+  RichTextMentionServiceProvider: ({
+    children,
+    service,
+  }: { children: ReactNode; service: unknown }) => {
     providedServices.push(service);
     return <>{children}</>;
   },
+}));
+
+vi.mock("@tutti-os/ui-system/components", () => ({
+  TooltipProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("next-themes", () => ({
@@ -36,6 +43,7 @@ afterEach(() => {
   cleanup();
   createMentionService.mockReset();
   providedServices.splice(0);
+  Reflect.deleteProperty(window, "tuttiExternal");
 });
 
 describe("Providers mention service", () => {
@@ -46,19 +54,49 @@ describe("Providers mention service", () => {
 
     const view = render(
       <StrictMode>
-        <Providers><div>canvas</div></Providers>
+        <Providers>
+          <div>canvas</div>
+        </Providers>
       </StrictMode>,
     );
 
     expect(createMentionService).toHaveBeenCalledTimes(2);
     expect(createMentionService).toHaveBeenLastCalledWith({
       getBridge: expect.any(Function),
-      providerIds: ["workspace-app", "agent-target"],
+      providerIds: ["file"],
     });
     expect(first.dispose).toHaveBeenCalledTimes(1);
     expect(providedServices.at(-1)).toBe(second);
 
     view.unmount();
     expect(second.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the production window bridge to the mention service", () => {
+    const bridge = {
+      at: {
+        query: vi.fn(),
+        queryDirectory: vi.fn(),
+      },
+    };
+    Object.defineProperty(window, "tuttiExternal", {
+      configurable: true,
+      value: bridge,
+    });
+    createMentionService.mockReturnValue({ dispose: vi.fn() });
+
+    const view = render(
+      <Providers>
+        <div>canvas</div>
+      </Providers>,
+    );
+
+    const mentionServiceOptions = createMentionService.mock.calls.at(-1)?.[0] as
+      | { getBridge: () => unknown; providerIds: string[] }
+      | undefined;
+    expect(mentionServiceOptions?.providerIds).toEqual(["file"]);
+    expect(mentionServiceOptions?.getBridge()).toBe(bridge);
+
+    view.unmount();
   });
 });
