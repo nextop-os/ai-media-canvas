@@ -26,6 +26,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aimc/shared exec tsc --build tsconfig.json --force
       - run: pnpm --filter @aimc/server typecheck
       - run: pnpm --filter @aimc/server test
       - run: pnpm package:tutti

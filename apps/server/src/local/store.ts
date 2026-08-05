@@ -1512,7 +1512,7 @@ export function createLocalStore(options: {
       mkdirSync(generatedDir, { recursive: true });
       const shortId = assetId.replace(/-/g, "").slice(0, 8);
       const stem = safeTshFileStem(
-        displayName.replace(/\.[^.]+$/, "") || "generated",
+        (displayName ?? input.fileName).replace(/\.[^.]+$/, "") || "generated",
       );
       const fileBase = `${stem}-${shortId}${ext}`;
       objectPath = `generated/${fileBase}`;
