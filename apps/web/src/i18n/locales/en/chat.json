@@ -43,7 +43,7 @@
     "addContent": "Add content",
     "ariaLabel": "Message input",
     "attachImages": "Attach images",
-    "browseReferences": "Browse files and app outputs",
+    "browseReferences": "Workspace resources",
     "cancel": "Cancel generation",
     "mentionEmpty": "No matches",
     "mentionLoading": "Searching...",
