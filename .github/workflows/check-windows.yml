@@ -28,5 +28,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @aimc/shared exec tsc --build tsconfig.json --force
       - run: pnpm --filter @aimc/server typecheck
-      - run: pnpm --filter @aimc/server test
+      - name: Run Windows runtime tests
+        run: >-
+          pnpm --filter @aimc/server exec vitest run
+          src/config/env.test.ts
+          src/local/tsh-workspace.test.ts
+          src/generation/providers/codex-imagegen-capability.test.ts
+          src/features/tutti-managed/tutti-cli-client.test.ts
       - run: pnpm package:tutti
