@@ -862,7 +862,10 @@ export async function assertNoSymlinks(root) {
   }
 }
 
-export async function validatePackageRoot(root) {
+export async function validatePackageRoot(
+  root,
+  { platform = process.platform } = {},
+) {
   for (const relativePath of REQUIRED_PACKAGE_FILES) {
     const absolutePath = path.join(root, relativePath);
     try {
@@ -878,7 +881,7 @@ export async function validatePackageRoot(root) {
   }
 
   const bootstrapStat = await stat(path.join(root, "bootstrap.sh"));
-  if ((bootstrapStat.mode & 0o111) === 0) {
+  if (platform !== "win32" && (bootstrapStat.mode & 0o111) === 0) {
     throw new Error("bootstrap.sh must be executable.");
   }
 
