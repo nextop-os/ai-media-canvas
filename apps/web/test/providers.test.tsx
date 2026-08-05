@@ -43,6 +43,7 @@ afterEach(() => {
   cleanup();
   createMentionService.mockReset();
   providedServices.splice(0);
+  Reflect.deleteProperty(window, "tuttiExternal");
 });
 
 describe("Providers mention service", () => {
@@ -69,5 +70,33 @@ describe("Providers mention service", () => {
 
     view.unmount();
     expect(second.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the production window bridge to the mention service", () => {
+    const bridge = {
+      at: {
+        query: vi.fn(),
+        queryDirectory: vi.fn(),
+      },
+    };
+    Object.defineProperty(window, "tuttiExternal", {
+      configurable: true,
+      value: bridge,
+    });
+    createMentionService.mockReturnValue({ dispose: vi.fn() });
+
+    const view = render(
+      <Providers>
+        <div>canvas</div>
+      </Providers>,
+    );
+
+    const mentionServiceOptions = createMentionService.mock.calls.at(-1)?.[0] as
+      | { getBridge: () => unknown; providerIds: string[] }
+      | undefined;
+    expect(mentionServiceOptions?.providerIds).toEqual(["file"]);
+    expect(mentionServiceOptions?.getBridge()).toBe(bridge);
+
+    view.unmount();
   });
 });
