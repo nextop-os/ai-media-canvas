@@ -122,6 +122,7 @@ export function detectCodexImagegenCapability(
 export async function detectConfiguredCodexImagegenCapability(options: {
   enabled: boolean;
   codexHome?: string;
+  tuttiCliPath?: string;
   timeoutMs?: number;
   runtime?: AgentDiscoveryRuntime;
 }): Promise<CodexImagegenCapability> {
@@ -130,6 +131,9 @@ export async function detectConfiguredCodexImagegenCapability(options: {
   }
   try {
     const target = await resolveCodexAgentTarget({
+      ...(options.tuttiCliPath
+        ? { detectContext: { env: { TUTTI_CLI: options.tuttiCliPath } } }
+        : {}),
       ...(options.runtime ? { runtime: options.runtime } : {}),
     });
     return detectCodexImagegenCapability({

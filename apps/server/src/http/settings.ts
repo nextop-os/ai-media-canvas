@@ -51,6 +51,7 @@ export async function registerSettingsRoutes(
       const capability = effectiveEnv.tuttiCliPath
         ? await detectConfiguredCodexImagegenCapability({
             enabled: effectiveEnv.codexImagegenEnabled === true,
+            tuttiCliPath: effectiveEnv.tuttiCliPath,
             ...(effectiveEnv.codexImagegenCodexHome
               ? { codexHome: effectiveEnv.codexImagegenCodexHome }
               : {}),

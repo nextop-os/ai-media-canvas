@@ -74,6 +74,7 @@ export function registerAllProviders(
           resolveCapability: () =>
             detectConfiguredCodexImagegenCapability({
               enabled: true,
+              ...(env.tuttiCliPath ? { tuttiCliPath: env.tuttiCliPath } : {}),
               ...(env.codexImagegenCodexHome
                 ? { codexHome: env.codexImagegenCodexHome }
                 : {}),

@@ -189,6 +189,43 @@ describe("detectCodexImagegenCapability", () => {
 });
 
 describe("detectConfiguredCodexImagegenCapability", () => {
+  it("passes the configured Tutti CLI to target discovery", async () => {
+    let detectedEnv: NodeJS.ProcessEnv | undefined;
+    const runtime = {
+      cancel: async () => undefined,
+      detect: async (context?: { env?: NodeJS.ProcessEnv }) => {
+        detectedEnv = context?.env;
+        return [
+          {
+            agentTargetId: "local:codex",
+            executablePath: join(process.cwd(), "__missing-codex-test-binary__"),
+            provider: "codex",
+            displayName: "Codex",
+            authState: "ok",
+            models: [],
+            supported: true,
+          },
+        ];
+      },
+      listProviders: () => [
+        { id: "codex", displayName: "Codex", kind: "local-agent" as const },
+      ],
+      run: async function* () {
+        yield* [];
+      },
+    };
+
+    await detectConfiguredCodexImagegenCapability({
+      enabled: true,
+      tuttiCliPath: String.raw`C:\Program Files\Tutti\tutti.exe`,
+      runtime: runtime as never,
+    });
+
+    expect(detectedEnv?.TUTTI_CLI).toBe(
+      String.raw`C:\Program Files\Tutti\tutti.exe`,
+    );
+  });
+
   it("preserves the target-selection error when Codex targets are ambiguous", async () => {
     const runtime = {
       cancel: async () => undefined,
