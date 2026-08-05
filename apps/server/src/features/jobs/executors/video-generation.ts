@@ -109,13 +109,17 @@ export async function executeVideoGenerationJob(
     generated.url,
     generated.mimeType || "video/mp4",
   );
+  const projectId =
+    job.project_id ??
+    (job.canvas_id ? store.getCanvas(job.canvas_id)?.projectId : null);
   const stored = store.uploadFile({
     bucket: "project-assets",
     fileName: `${provider}-${Date.now()}`,
     displayName: payload.title ?? payload.prompt,
     fileBuffer: buffer,
     mimeType,
-    ...(job.project_id ? { projectId: job.project_id } : {}),
+    scope: "generated",
+    ...(projectId ? { projectId } : {}),
   });
   return {
     asset_id: stored.asset.id,

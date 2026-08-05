@@ -67,7 +67,9 @@ describe("createLocalStore", () => {
 
     expect(existsSync(join(databaseRoot, "ai-media-canvas.db"))).toBe(true);
     expect(existsSync(join(dataRoot, "ai-media-canvas.db"))).toBe(false);
-    expect(existsSync(join(dataRoot, "assets"))).toBe(true);
+    // Private assets stay with the VM-local database root, not FabricFS dataRoot.
+    expect(existsSync(join(databaseRoot, "assets"))).toBe(true);
+    expect(existsSync(join(dataRoot, "assets"))).toBe(false);
   });
 
   it("creates unique slugs for duplicate project names", () => {

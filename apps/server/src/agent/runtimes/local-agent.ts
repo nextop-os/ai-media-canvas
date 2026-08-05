@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -44,13 +44,21 @@ export async function createLocalAgentRunDirectory(input: {
   appDataDir?: string;
   runId: string;
   runtimeProvider: AgentRuntimeProvider;
-}): Promise<string> {
-  // Agent run state is disposable. Keeping it below TUTTI_APP_DATA_DIR makes
-  // every mkdir/write/rm cross FabricFS/NFS and blocks prompt startup. Use the
-  // VM-local temporary filesystem even when durable app data is configured.
-  return mkdtemp(
+  /** When set (TSH project dir), use it as cwd instead of an ephemeral tmp dir. */
+  projectWorkspaceRoot?: string;
+}): Promise<{ path: string; ephemeral: boolean }> {
+  const projectRoot = input.projectWorkspaceRoot?.trim();
+  if (projectRoot) {
+    await mkdir(projectRoot, { recursive: true });
+    return { path: projectRoot, ephemeral: false };
+  }
+  // Outside TSH, agent run state is disposable. Keeping it below
+  // TUTTI_APP_DATA_DIR makes every mkdir/write/rm cross FabricFS/NFS and blocks
+  // prompt startup. Use the VM-local temporary filesystem instead.
+  const path = await mkdtemp(
     join(tmpdir(), `aimc-local-agent-${input.runtimeProvider}-run-`),
   );
+  return { path, ephemeral: true };
 }
 
 function mapResumeContext(
@@ -286,27 +294,43 @@ export function createLocalAgentRuntimeProvider(
         "Use inspect_canvas before precise canvas edits, and use manipulate_canvas for deterministic canvas updates.",
         "Do not claim an image or canvas update happened unless the tool actually succeeded.",
         "Ask clarifying questions or confirmation requests in normal assistant text. Do not use provider-native interactive question tools such as AskUserQuestion.",
+        "When starting new work on a project whose title is still a placeholder such as Untitled, choose a concise human title and call set_project_title early; do not leave the raw instruction as the project title. On TSH this also renames the project directory.",
+        "To rename the project, call set_project_title instead of renaming folders by hand.",
         "Before a non-Codex agent calls generate_image with model codex/gpt-image-2, it must call get_workspace_settings. If codexImagegen.confirmationRequired is true, explain in normal assistant text that no image generation model is directly available for this agent and ask whether to delegate this image generation task to Codex. After the user answers, call update_workspace_settings with patch.codexImagegenDelegation=allow-once for a one-time allow, always for a durable allow, or deny before stopping.",
         "Workspace skill files are materialized under the current working directory; when reading them with shell or file tools, use relative paths such as `workspace-skills/<slug>/SKILL.md` and never `/workspace-skills/<slug>/SKILL.md`.",
         handoffSection,
         normalizedPrompt,
       ].join("\n\n");
       let runDir: string | undefined;
+      let ephemeralRunDir = true;
       const runDirectoryStartedAt = Date.now();
       try {
         run.controller.signal.throwIfAborted();
-        runDir = deps.createRunDirectory
-          ? await deps.createRunDirectory({
-              runId: run.runId,
-              runtimeProvider,
-            })
-          : await createLocalAgentRunDirectory({
-              ...(runtimeEnv.appDataDir
-                ? { appDataDir: runtimeEnv.appDataDir }
-                : {}),
-              runId: run.runId,
-              runtimeProvider,
-            });
+        if (deps.createRunDirectory) {
+          runDir = await deps.createRunDirectory({
+            runId: run.runId,
+            runtimeProvider,
+          });
+          ephemeralRunDir = true;
+        } else {
+          const projectWorkspaceRoot = deps.resolveProjectWorkspaceRoot
+            ? await deps.resolveProjectWorkspaceRoot({
+                ...(run.canvasId ? { canvasId: run.canvasId } : {}),
+              })
+            : null;
+          const created = await createLocalAgentRunDirectory({
+            ...(runtimeEnv.appDataDir
+              ? { appDataDir: runtimeEnv.appDataDir }
+              : {}),
+            ...(projectWorkspaceRoot
+              ? { projectWorkspaceRoot }
+              : {}),
+            runId: run.runId,
+            runtimeProvider,
+          });
+          runDir = created.path;
+          ephemeralRunDir = created.ephemeral;
+        }
         if (!runDir) {
           throw new Error("Local agent run directory is required.");
         }
@@ -314,9 +338,11 @@ export function createLocalAgentRuntimeProvider(
         rlog.info("agent_prepare_stage_done", {
           stage: "run_directory",
           elapsed_ms: Date.now() - runDirectoryStartedAt,
+          ephemeral: ephemeralRunDir,
+          cwd: runDir,
         });
       } catch (error) {
-        if (runDir) {
+        if (runDir && ephemeralRunDir) {
           await rm(runDir, { recursive: true, force: true });
         }
         throw error;
@@ -519,6 +545,8 @@ export function createLocalAgentRuntimeProvider(
           signal: run.controller.signal,
           skillManifest,
           timeoutMs: resolveLocalAgentTimeoutMs(runtimeEnv),
+          // Never leave Codex root markers in user-visible /workspace trees.
+          ...(!ephemeralRunDir ? { writeCodexProjectRootMarker: false } : {}),
           metadata: { timingDiagnostics: true },
         })) {
           const timingDiagnostic = readAgentTimingDiagnostic(event);
@@ -647,10 +675,18 @@ export function createLocalAgentRuntimeProvider(
         if (gatewaySessionToken) {
           deps.toolGateway.revokeSession(gatewaySessionToken);
         }
-        await rm(runDir, { recursive: true, force: true });
+        if (ephemeralRunDir) {
+          await rm(runDir, { recursive: true, force: true });
+        } else {
+          // Remove leftover markers from older kit versions / prior runs.
+          await unlink(join(runDir, ".agent-acp-kit-codex-root")).catch(
+            () => undefined,
+          );
+        }
         rlog.info("agent_cleanup_done", {
           elapsed_ms: Date.now() - cleanupStartedAt,
           total_elapsed_ms: Date.now() - appPrepareStartedAt,
+          ephemeral: ephemeralRunDir,
         });
       }
     },

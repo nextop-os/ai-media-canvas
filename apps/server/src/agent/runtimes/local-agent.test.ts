@@ -215,8 +215,67 @@ describe("createLocalAgentRuntimeProvider", () => {
         runtimeProvider: "codex",
       });
 
-      expect(result).toContain(join(tmpdir(), "aimc-local-agent-codex-run-"));
-      expect(result).not.toContain(join(tempRoot, "app-data"));
+      expect(result.ephemeral).toBe(true);
+      expect(result.path).toContain(join(tmpdir(), "aimc-local-agent-codex-run-"));
+      expect(result.path).not.toContain(join(tempRoot, "app-data"));
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("uses a durable project workspace as cwd when provided", async () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "aimc-local-agent-project-"));
+    const projectRoot = join(tempRoot, "workspace", "demo-abcdef12");
+    try {
+      const result = await createLocalAgentRunDirectory({
+        projectWorkspaceRoot: projectRoot,
+        runId: "run-1",
+        runtimeProvider: "codex",
+      });
+
+      expect(result).toEqual({ path: projectRoot, ephemeral: false });
+      expect(existsSync(projectRoot)).toBe(true);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the TSH project workspace after the run finishes", async () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), "aimc-durable-cwd-"));
+    const projectRoot = join(tempRoot, "project");
+    mkdirSync(projectRoot, { recursive: true });
+    const localAgentRuntimeRun = vi.fn(async function* () {
+      yield {
+        type: "done" as const,
+        status: "completed" as const,
+        reason: "completed" as const,
+        exitCode: 0,
+      };
+    });
+    const revokeSession = vi.fn();
+    const provider = createLocalAgentRuntimeProvider(
+      {
+        buildAttachmentDataMap: vi.fn(() => ({})),
+        buildUserMessage: vi.fn((prompt) => ({ text: prompt })),
+        resolveProjectWorkspaceRoot: vi.fn(async () => projectRoot),
+        loadCanvasSummaryForRuntime: vi.fn(async () => null),
+        localAgentRuntime: { run: localAgentRuntimeRun },
+        now: () => "2026-06-17T00:00:00.000Z",
+        toolGateway: {
+          createSession: vi.fn(() => ({ token: "tool-token" })),
+          revokeSession,
+        } as never,
+        toolGatewayBaseUrl: "http://127.0.0.1:3001/api/local-tools",
+      },
+      createProviderPlugin("codex"),
+    );
+
+    try {
+      const context = createRuntimeContext();
+      context.run.canvasId = "canvas-1";
+      await collect(provider.streamRun(context));
+      expect(localAgentRuntimeRun.mock.calls[0]?.[0]?.cwd).toBe(projectRoot);
+      expect(existsSync(projectRoot)).toBe(true);
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }

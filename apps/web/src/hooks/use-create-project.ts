@@ -52,6 +52,7 @@ export function useCreateProject() {
       videoGenerationPreference?: VideoGenerationPreference;
       model?: string;
       modelSource?: AgentModelSource;
+      parentPath?: string;
     }) => {
       if (creatingRef.current) return;
       creatingRef.current = true;
@@ -119,7 +120,11 @@ export function useCreateProject() {
 
       setCreating(true);
       try {
-        const result = await createProject({ name: "Untitled" });
+        const parentPath = opts?.parentPath?.trim();
+        const result = await createProject({
+          name: "Untitled",
+          ...(parentPath ? { parentPath } : {}),
+        });
         const canvasId = result.project.primaryCanvas.id;
 
         const url = opts?.prompt

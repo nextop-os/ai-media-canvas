@@ -77,6 +77,11 @@ const CLI_COMMANDS = [
         type: "string",
         description: "Optional project description.",
       },
+      "parent-path": {
+        type: "string",
+        description:
+          "Optional TSH parent directory under /workspace for the project folder.",
+      },
     },
     required: ["name"],
   },
@@ -690,18 +695,27 @@ export HOST="\${TUTTI_APP_HOST:-127.0.0.1}"
 export AIMC_SERVER_PORT="\${TUTTI_APP_PORT:-3001}"
 export AIMC_APP_VERSION="${version}"
 export AIMC_WEB_DIST="$package_dir/dist"
-export AIMC_DATA_ROOT="\${TUTTI_APP_DATA_DIR:-$package_dir/.data}"
-export AIMC_DATABASE_ROOT="\${TUTTI_APP_DATABASE_DIR:-$AIMC_DATA_ROOT}"
+# Prefer VM-local database dir for all private app state. Do not persist under
+# TUTTI_APP_DATA_DIR / .tsh (FabricFS). Public project files live under /workspace.
+if [ -n "\${TUTTI_APP_DATABASE_DIR:-}" ]; then
+  export AIMC_DATABASE_ROOT="\$TUTTI_APP_DATABASE_DIR"
+  export AIMC_DATA_ROOT="\$TUTTI_APP_DATABASE_DIR"
+else
+  export AIMC_DATA_ROOT="\${TUTTI_APP_DATA_DIR:-$package_dir/.data}"
+  export AIMC_DATABASE_ROOT="\$AIMC_DATA_ROOT"
+fi
 export AIMC_SKILLS_ROOT="$package_dir/skills"
 export AIMC_TOOLS_MCP_PATH="$package_dir/server/tools-mcp.js"
-export AIMC_AGENT_FILES_ROOT="$AIMC_DATA_ROOT"
+export AIMC_AGENT_FILES_ROOT="\$AIMC_DATA_ROOT"
+export AIMC_TUTTI_MANAGED_FILES_ROOT="\$AIMC_DATA_ROOT/uploads"
+export TUTTI_APP_MANAGED_FILES_ROOT="\$AIMC_DATA_ROOT/uploads"
 
 base_url="\${TUTTI_APP_BASE_URL:-http://$HOST:$AIMC_SERVER_PORT}"
 export AIMC_WEB_ORIGIN="$base_url"
 export AIMC_SERVER_BASE_URL="$base_url"
 
 node_bin="\${TUTTI_APP_NODE:-node}"
-runtime_dir="\${TUTTI_APP_RUNTIME_DIR:-$AIMC_DATA_ROOT/.runtime}"
+runtime_dir="\${TUTTI_APP_RUNTIME_DIR:-$AIMC_DATABASE_ROOT/.runtime}"
 mkdir -p "$AIMC_DATA_ROOT" "$AIMC_DATABASE_ROOT" "$runtime_dir"
 legacy_db="$AIMC_DATA_ROOT/ai-media-canvas.db"
 database_db="$AIMC_DATABASE_ROOT/ai-media-canvas.db"
@@ -792,15 +806,17 @@ This package runs AI Canvas as a Tutti workspace app.
 ## Runtime
 
 Tutti executes \`bootstrap.sh\` with no arguments. The bootstrap script binds
-the server to \`TUTTI_APP_HOST:TUTTI_APP_PORT\`, serves \`dist/\`, stores local
-assets under \`TUTTI_APP_DATA_DIR\`, and stores active SQLite files under
-\`TUTTI_APP_DATABASE_DIR\` when the runtime provides it.
+the server to \`TUTTI_APP_HOST:TUTTI_APP_PORT\`, serves \`dist/\`, and stores
+private app state (SQLite, thumbnails, uploads, brand-kit) under
+\`TUTTI_APP_DATABASE_DIR\` when the runtime provides it. Public project files
+(generated media, agent cwd, workspace-skills) live under the user-selected
+\`/workspace\` project directory. Do not persist under \`TUTTI_APP_DATA_DIR\` /
+\`.tsh\`.
 When those variables are absent during local direct startup, it falls back to
 \`127.0.0.1:3001\`, \`./.data\`, and the system \`node\` command.
 
-Treat \`TUTTI_APP_PACKAGE_DIR\` as read-only. Use \`TUTTI_APP_DATA_DIR\` for
-shared durable files, \`TUTTI_APP_DATABASE_DIR\` for VM-local SQLite files,
-\`TUTTI_APP_RUNTIME_DIR\` for scratch files, and
+Treat \`TUTTI_APP_PACKAGE_DIR\` as read-only. Use \`TUTTI_APP_DATABASE_DIR\` for
+VM-local private state, \`TUTTI_APP_RUNTIME_DIR\` for scratch files, and
 \`TUTTI_APP_LOG_DIR\` for additional logs if future changes add them.
 
 ## Codex Image Generation Consent

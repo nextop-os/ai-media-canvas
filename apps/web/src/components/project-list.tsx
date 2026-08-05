@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { useDeleteProject } from "@/hooks/use-delete-project";
 import { useAppTranslation } from "@/i18n";
+import { toRuntimeAssetUrl } from "@/lib/local-assets";
 import { formatProjectName } from "@/lib/project-display";
 import { formatDate } from "@/lib/utils";
 import { DeleteProjectDialog } from "./delete-project-dialog";
@@ -104,7 +105,11 @@ export function ProjectList({
               </button>
 
               <ProjectThumbnailPreview
-                src={project.thumbnailUrl}
+                src={
+                  project.thumbnailUrl
+                    ? toRuntimeAssetUrl(project.thumbnailUrl)
+                    : null
+                }
                 alt={projectName}
                 previewLabel={t("previewCover", { name: projectName })}
               />
