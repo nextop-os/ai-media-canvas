@@ -4,7 +4,6 @@ import type {
   ChatMessageCreateRequest,
   GenerationModelSchema,
   JobResponse,
-  ManagedFileAssetMetadata,
   MessageCreateResponse,
   MessageListResponse,
   ModelListResponse,
@@ -32,11 +31,6 @@ import { ApiApplicationError } from "./api-errors";
 import { dedupeRequest } from "./dedupe-request";
 import { getServerBaseUrl } from "./env";
 import { generationJobService } from "./generation-job-service";
-import {
-  type UploadAppAssetOptions,
-  hasTuttiFileUploadBridge,
-  uploadTuttiAppAsset,
-} from "./tutti-file-upload";
 
 export { ApiApplicationError } from "./api-errors";
 
@@ -355,31 +349,20 @@ export async function fetchRunEvents(
 
 // --- Upload API ---
 
-export type UploadFileOptions = Pick<
-  UploadAppAssetOptions,
-  "onProgress" | "signal"
->;
+export type UploadFileOptions = {
+  onProgress?: (progress: {
+    loadedBytes: number;
+    totalBytes?: number;
+    ratio?: number;
+  }) => void;
+  signal?: AbortSignal;
+};
 
 export async function uploadFile(
   file: File,
   projectId?: string,
   options: UploadFileOptions = {},
 ): Promise<UploadResponse> {
-  if (hasTuttiFileUploadBridge()) {
-    const uploaded = await uploadTuttiAppAsset(file, {
-      name: file.name,
-      mimeType: file.type || "application/octet-stream",
-      ...(options.onProgress ? { onProgress: options.onProgress } : {}),
-      ...(options.signal ? { signal: options.signal } : {}),
-    });
-    const response = await createManagedFileAsset(
-      uploaded,
-      projectId,
-      options.signal,
-    );
-    return response;
-  }
-
   const formData = new FormData();
   formData.append("file", file);
   if (projectId) {
@@ -391,27 +374,6 @@ export async function uploadFile(
     body: formData,
     ...(options.signal ? { signal: options.signal } : {}),
   });
-  if (!response.ok) return handleErrorResponse(response);
-  return (await response.json()) as UploadResponse;
-}
-
-async function createManagedFileAsset(
-  file: ManagedFileAssetMetadata,
-  projectId: string | undefined,
-  signal: AbortSignal | undefined,
-): Promise<UploadResponse> {
-  const response = await fetch(
-    `${getServerBaseUrl()}/api/uploads/managed-file`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        file,
-        ...(projectId ? { projectId } : {}),
-      }),
-      ...(signal ? { signal } : {}),
-    },
-  );
   if (!response.ok) return handleErrorResponse(response);
   return (await response.json()) as UploadResponse;
 }
