@@ -109,6 +109,32 @@ describe("createLocalStore", () => {
     ).toBeNull();
   });
 
+  it("reuses a chat message for the same client request and role", () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-"));
+    tempDirs.push(dataRoot);
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+    });
+    const project = store.createProject({ name: "Idempotent messages" });
+    const session = store.createSession(project.primaryCanvas.id, "Chat");
+    if (!session) throw new Error("expected chat session");
+
+    const first = store.createMessage(session.id, {
+      clientRequestId: "request-1",
+      role: "user",
+      content: "first",
+    });
+    const replay = store.createMessage(session.id, {
+      clientRequestId: "request-1",
+      role: "user",
+      content: "replayed",
+    });
+
+    expect(replay).toEqual(first);
+    expect(store.listMessages(session.id)).toHaveLength(1);
+  });
+
   it("persists agent run metadata in the local SQLite database", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-"));
     tempDirs.push(dataRoot);

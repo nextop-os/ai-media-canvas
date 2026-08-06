@@ -94,6 +94,9 @@ function CanvasPageContent() {
   const [initialPrompt] = useState(
     () => searchParams.get("prompt") ?? undefined,
   );
+  const [initialRequestId] = useState(
+    () => searchParams.get("requestId") ?? undefined,
+  );
   const router = useRouter();
 
   const [canvasData, setCanvasData] = useState<{
@@ -510,6 +513,7 @@ function CanvasPageContent() {
         onCanvasSync={handleCanvasSync}
         onStreamEvent={handleStreamEvent}
         initialPrompt={initialPrompt}
+        initialRequestId={initialRequestId}
         initialSessionId={initialSessionId}
         onSessionChange={handleSessionChange}
         onRequestCanvasImages={handleRequestCanvasImages}

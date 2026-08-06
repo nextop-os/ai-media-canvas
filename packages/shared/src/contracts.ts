@@ -73,6 +73,7 @@ export const agentRunResumeModeSchema = z.enum([
 
 export const runCreateRequestSchema = z
   .object({
+    clientRequestId: identifierSchema.optional(),
     sessionId: sessionIdSchema,
     conversationId: conversationIdSchema,
     prompt: z.string(),
@@ -153,6 +154,7 @@ export const runCreateResponseSchema = z.object({
   agentTargetId: agentTargetIdSchema.optional(),
   runtimeProvider: agentRuntimeProviderSchema.optional(),
   resumeMode: agentRunResumeModeSchema.exclude(["auto"]).optional(),
+  reused: z.boolean().optional(),
 });
 
 export const viewerProfileSchema = z.object({
@@ -329,6 +331,7 @@ export const chatMessageSchema = z.object({
 });
 
 export const chatMessageCreateRequestSchema = z.object({
+  clientRequestId: identifierSchema.optional(),
   role: z.enum(["user", "assistant"]),
   content: z.string(),
   toolActivities: z.array(chatToolActivitySchema).nullable().optional(),

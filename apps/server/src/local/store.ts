@@ -2068,11 +2068,15 @@ export function createLocalStore(options: {
     messageId?: string,
   ): ChatMessage | null {
     if (!hasSession(sessionId)) return null;
-    const id = messageId ?? randomUUID();
+    const id =
+      messageId ??
+      (input.clientRequestId
+        ? `${input.clientRequestId}:${input.role}`
+        : randomUUID());
     const timestamp = nowIso();
     db.prepare(
       `
-        INSERT INTO chat_messages (
+        INSERT OR IGNORE INTO chat_messages (
           id, session_id, role, content, content_blocks, created_at
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
@@ -2084,17 +2088,32 @@ export function createLocalStore(options: {
       input.contentBlocks ? JSON.stringify(input.contentBlocks) : null,
       timestamp,
     );
+    const persisted = db
+      .prepare(
+        `SELECT role, content, content_blocks, created_at
+           FROM chat_messages
+          WHERE id = ? AND session_id = ?`,
+      )
+      .get(id, sessionId) as
+      | {
+          role: "user" | "assistant";
+          content: string;
+          content_blocks: string | null;
+          created_at: string;
+        }
+      | undefined;
+    if (!persisted) return null;
     db.prepare(`UPDATE chat_sessions SET updated_at = ? WHERE id = ?`).run(
       timestamp,
       sessionId,
     );
     return {
       id,
-      role: input.role,
-      content: input.content,
+      role: persisted.role,
+      content: persisted.content,
       toolActivities: input.toolActivities ?? null,
-      contentBlocks: input.contentBlocks ?? null,
-      createdAt: timestamp,
+      contentBlocks: parseJson(persisted.content_blocks, null),
+      createdAt: persisted.created_at,
     };
   }
 

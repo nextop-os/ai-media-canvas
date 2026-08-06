@@ -63,6 +63,7 @@ type ChatSidebarProps = {
   /** Called for every stream event for job fallback polling. */
   onStreamEvent?: (event: StreamEvent) => void;
   initialPrompt?: string | undefined;
+  initialRequestId?: string | undefined;
   initialSessionId?: string | undefined;
   onSessionChange?: (sessionId: string) => void;
   onRequestCanvasImages?: () => CanvasImageItem[];
@@ -294,6 +295,7 @@ export function ChatSidebar({
   onCanvasSync,
   onStreamEvent,
   initialPrompt,
+  initialRequestId,
   initialSessionId,
   onSessionChange,
   onRequestCanvasImages,
@@ -776,6 +778,7 @@ export function ChatSidebar({
       attachmentsOverride?: ReadyAttachment[],
       imageGenerationPreferenceOverride?: ImageGenerationPreference,
       videoGenerationPreferenceOverride?: VideoGenerationPreference,
+      clientRequestIdOverride?: string,
     ) => {
       const currentSessionId = activeSessionIdRef.current;
       if (
@@ -877,6 +880,9 @@ export function ChatSidebar({
         updateSessionMessages(currentSessionId, (prev) => [...prev, userMsg]);
 
         const userMessagePayload = {
+          ...(clientRequestIdOverride
+            ? { clientRequestId: clientRequestIdOverride }
+            : {}),
           role: "user" as const,
           content: text,
           contentBlocks: [{ type: "text" as const, text }, ...imageBlocks],
@@ -1043,6 +1049,7 @@ export function ChatSidebar({
           const previousRunId =
             lastCompletedRunIdsRef.current.get(currentSessionId);
           const runPayload = {
+            clientRequestId: clientRequestIdOverride ?? crypto.randomUUID(),
             sessionId: currentSessionId,
             conversationId: canvasId,
             prompt: agentPromptText,
@@ -1101,6 +1108,7 @@ export function ChatSidebar({
               );
               const payloadRecord = ack.payload as Record<string, unknown>;
               const id = payloadRecord.runId as string;
+              const reused = payloadRecord.reused === true;
               const assistantMessageId =
                 typeof payloadRecord.assistantMessageId === "string"
                   ? payloadRecord.assistantMessageId
@@ -1125,6 +1133,9 @@ export function ChatSidebar({
                 setActiveRunId(id);
               }
               reportUserActive();
+              if (reused) {
+                void reloadMessages(currentSessionId).finally(resolveStream);
+              }
               resolve(id);
             });
           });
@@ -1192,6 +1203,7 @@ export function ChatSidebar({
       setStreaming,
       showToast,
       t,
+      reloadMessages,
     ],
   );
 
@@ -1254,7 +1266,8 @@ export function ChatSidebar({
     }
 
     const shouldSendInitial =
-      Boolean(initialPrompt) || Boolean(storedAttachments?.length);
+      Boolean(initialRequestId) &&
+      (Boolean(initialPrompt) || Boolean(storedAttachments?.length));
     if (!shouldSendInitial) return;
 
     if (storedAgentModel) {
@@ -1270,12 +1283,14 @@ export function ChatSidebar({
         storedAttachments,
         storedImageGenerationPreference,
         storedVideoGenerationPreference,
+        initialRequestId,
       );
     }, 0);
 
     return () => clearTimeout(timer);
   }, [
     initialPrompt,
+    initialRequestId,
     sessionsLoading,
     ws.connected,
     handleSend,

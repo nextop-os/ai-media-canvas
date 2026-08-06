@@ -207,6 +207,34 @@ describe("createAgentRunService", () => {
     );
   });
 
+  it("reuses the run created for the same client request", () => {
+    const createRun = vi.fn();
+    const runs = createAgentRunService({
+      agentRunStore: {
+        createRun,
+        updateRun: vi.fn(),
+      },
+      env: {
+        agentBackendMode: "state",
+        agentModel: "codex:gpt-5.4",
+        port: 3001,
+        version: "0.0.0",
+        webOrigin: "http://localhost:3000",
+      },
+    });
+    const input = {
+      clientRequestId: "request-1",
+      conversationId: "canvas-1",
+      prompt: "继续",
+      sessionId: "session-1",
+    };
+    const first = runs.createRun(input);
+    const replay = runs.createRun(input);
+
+    expect(replay).toMatchObject({ runId: first.runId, reused: true });
+    expect(createRun).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves the local CLI default model for the host adapter", async () => {
     vi.stubEnv("TUTTI_CLI", "");
     localAgentRuntimeRunMock.mockClear();

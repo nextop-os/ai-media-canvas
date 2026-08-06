@@ -489,6 +489,9 @@ async function handleRunCommand(
         authenticatedUser,
         payload.sessionId,
         {
+          ...(payload.clientRequestId
+            ? { clientRequestId: payload.clientRequestId }
+            : {}),
           role: "assistant",
           content: "",
           contentBlocks: [],
@@ -550,6 +553,11 @@ async function handleRunCommand(
     }
   }
   log.lap("ack_sent", { runId, connectionId, delivered: ackSent });
+
+  if (response.reused) {
+    log.lap("run_reused", { runId, connectionId });
+    return;
+  }
 
   // Track active run so reconnecting clients can detect it
   connectionManager.setActiveRun(
