@@ -1,8 +1,9 @@
-import { mkdirSync } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { basename, join, resolve, sep } from "node:path";
 
 export const TSH_WORKSPACE_APP_ENV = "TSH_WORKSPACE_APP";
 export const TSH_DEFAULT_PARENT_PATH = "/workspace";
+export const TSH_PROJECT_NAME_PREFIX = "canvas";
 
 export function isTshWorkspaceAppHost(
   env: NodeJS.ProcessEnv = process.env,
@@ -52,37 +53,63 @@ export function assertAllowedTshParentPath(pathValue: string): string {
   return resolved;
 }
 
-/** Allocate `parent/<title-stem>-<id8>/` under /workspace (slide-aligned). */
-export function allocateTshProjectRoot(
-  parentPath: string,
-  title: string,
-  projectId: string,
-): string {
-  const parent = assertAllowedTshParentPath(parentPath);
-  const slug = safeTshFileStem(title.trim() || "untitled").slice(0, 48);
-  const shortId = projectId.replace(/-/g, "").slice(0, 8) || "project";
-  return join(parent, `${slug}-${shortId}`);
+export function formatTshArtifactDateSlug(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-/** Rename a TSH project root while preserving the trailing short id. */
-export function allocateRenamedTshProjectRoot(
-  currentRoot: string,
-  title: string,
+/** `canvas-YYYY-MM-DD` stem before the conflict index. */
+export function formatTshArtifactDatedStem(
+  prefix: string = TSH_PROJECT_NAME_PREFIX,
+  date: Date = new Date(),
 ): string {
-  const resolved = resolve(currentRoot.trim());
-  const parent = dirname(resolved);
-  assertAllowedTshParentPath(parent);
-  const base = basename(resolved);
-  const shortIdMatch = base.match(/-([a-f0-9]{8})$/i);
-  const shortId = shortIdMatch?.[1] || "project";
-  let stem = title.trim();
-  stem = stem.replace(new RegExp(`-${shortId}$`, "i"), "");
-  const slug = safeTshFileStem(stem);
-  return join(parent, `${slug}-${shortId}`);
+  return `${prefix}-${formatTshArtifactDateSlug(date)}`;
+}
+
+/**
+ * Allocate `parent/canvas-YYYY-MM-DD-<n>/`.
+ * Import/named: `{preferredStem}/` with `-2`, `-3`, … on conflict.
+ */
+export function allocateTshProjectRoot(
+  parentPath: string,
+  options: { now?: Date; preferredStem?: string | null } = {},
+): string {
+  const parent = assertAllowedTshParentPath(parentPath);
+  const preferred = options.preferredStem?.trim();
+  if (preferred) {
+    return allocateUniquePath(parent, safeTshFileStem(preferred));
+  }
+  return allocateDatedPath(parent, formatTshArtifactDatedStem(TSH_PROJECT_NAME_PREFIX, options.now));
+}
+
+export function tshProjectDisplayTitle(pathValue: string): string {
+  return basename(resolve(pathValue.trim()));
 }
 
 export function ensureTshProjectRoot(root: string): string {
   const resolved = assertAllowedTshParentPath(root);
   mkdirSync(resolved, { recursive: true });
   return resolved;
+}
+
+function allocateDatedPath(parent: string, datedStem: string): string {
+  let index = 1;
+  while (true) {
+    const candidate = join(parent, `${datedStem}-${index}`);
+    if (!existsSync(candidate)) return candidate;
+    index += 1;
+  }
+}
+
+function allocateUniquePath(parent: string, stem: string): string {
+  let candidate = join(parent, stem);
+  if (!existsSync(candidate)) return candidate;
+  let index = 2;
+  while (true) {
+    candidate = join(parent, `${stem}-${index}`);
+    if (!existsSync(candidate)) return candidate;
+    index += 1;
+  }
 }

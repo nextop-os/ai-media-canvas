@@ -93,7 +93,7 @@ Only use this order when the user explicitly asks to lay out or construct editab
 
 If the user wants a finished visual deliverable, do not assemble it on the canvas with the sequence above. Prefer generate_image directly.
 
-When the project title is still a placeholder such as Untitled, choose a concise human title early and call set_project_title. Prefer a short topic name over the raw user instruction. Do not rename project folders by hand.
+When the project title is still a placeholder such as Untitled, choose a concise human title early and call set_project_title. Prefer a short topic name over the raw user instruction. This updates the display title only and does not rename the project directory. To rename the on-disk directory, use filesystem tools separately.
 
 Keep replies concise and friendly.`;
 

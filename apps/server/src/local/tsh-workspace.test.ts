@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { join, resolve } from "node:path";
 
 import {
-  allocateRenamedTshProjectRoot,
   allocateTshProjectRoot,
   assertAllowedTshParentPath,
+  formatTshArtifactDateSlug,
+  formatTshArtifactDatedStem,
   isTshWorkspaceAppHost,
   resolveTshParentPath,
   safeTshFileStem,
+  tshProjectDisplayTitle,
 } from "./tsh-workspace.js";
 
 describe("tsh-workspace", () => {
@@ -32,20 +34,25 @@ describe("tsh-workspace", () => {
     expect(safeTshFileStem("春季画布")).toBe("春季画布");
   });
 
-  it("allocates title-shortId under /workspace", () => {
-    const projectId = "abcdef12-3456-7890-abcd-ef1234567890";
-    expect(allocateTshProjectRoot("/workspace", "春季画布", projectId)).toBe(
-      join(resolve("/workspace"), "春季画布-abcdef12"),
+  it("allocates canvas-YYYY-MM-DD-n under /workspace", () => {
+    const now = new Date("2026-08-06T12:00:00.000Z");
+    const stem = formatTshArtifactDatedStem("canvas", now);
+    expect(stem).toBe(`canvas-${formatTshArtifactDateSlug(now)}`);
+    expect(allocateTshProjectRoot("/workspace", { now })).toBe(
+      join(resolve("/workspace"), `${stem}-1`),
     );
   });
 
-  it("renames while preserving the trailing short id", () => {
+  it("allocates preferred stems with conflict suffix", () => {
     expect(
-      allocateRenamedTshProjectRoot(
-        "/workspace/Untitled-abcdef12",
-        "海边奇遇",
-      ),
-    ).toBe(join(resolve("/workspace"), "海边奇遇-abcdef12"));
+      allocateTshProjectRoot("/workspace", { preferredStem: "春季画布" }),
+    ).toBe(join(resolve("/workspace"), "春季画布"));
+  });
+
+  it("display title is the directory basename", () => {
+    expect(tshProjectDisplayTitle("/workspace/canvas-2026-08-06-1")).toBe(
+      "canvas-2026-08-06-1",
+    );
   });
 
   it("rejects paths outside /workspace", () => {

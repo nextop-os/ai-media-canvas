@@ -716,7 +716,7 @@ describe("createLocalToolGatewayService", () => {
       projectId: "project-1",
       success: true as const,
       title,
-      workspaceRoot: `/workspace/${title}-abcdef12`,
+      workspaceRoot: `/workspace/canvas-2026-08-06-1`,
       canvasId,
     }));
     const gateway = createLocalToolGatewayService({
@@ -741,7 +741,7 @@ describe("createLocalToolGatewayService", () => {
       output: {
         success: true,
         title: "海边奇遇",
-        workspaceRoot: "/workspace/海边奇遇-abcdef12",
+        workspaceRoot: "/workspace/canvas-2026-08-06-1",
       },
     });
     expect(setProjectTitle).toHaveBeenCalledWith({

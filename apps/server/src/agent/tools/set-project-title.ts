@@ -40,7 +40,7 @@ export function createSetProjectTitleTool(deps: {
     {
       name: "set_project_title",
       description:
-        "Set the current project's human title. The current project is inferred from the active canvas; do not pass a project id. On TSH this also renames the project directory under /workspace while preserving the short id suffix. Call this early when the title is still a placeholder such as Untitled.",
+        "Set the current project's human-readable display title. The current project is inferred from the active canvas; do not pass a project id. This does not rename the project directory. Call this early when the title is still a placeholder such as Untitled.",
       schema: z.object({
         title: z
           .string()
