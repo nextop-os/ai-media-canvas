@@ -104,10 +104,7 @@ export function normalizeWorkspaceSettings(
     input.defaultModel?.trim() ?? "",
   );
   const defaultModelSource =
-    defaultModel &&
-    (input.defaultModelSource === "local-agent" ||
-      input.defaultModelSource === "tutti-managed" ||
-      input.defaultModelSource === "api-provider")
+    defaultModel && input.defaultModelSource === "local-agent"
       ? input.defaultModelSource
       : undefined;
   return {

@@ -17,9 +17,6 @@ import type {
   VideoGenerationPreference,
   WorkspaceSettings,
 } from "@aimc/shared";
-import type { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { InMemoryStore } from "@langchain/langgraph";
 import {
   type LocalAgentProviderPlugin,
   type LocalAgentRuntime,
@@ -44,7 +41,6 @@ import {
 } from "../features/credits/tier-guard.js";
 import type { JobService } from "../features/jobs/job-service.js";
 import { refreshGenerationProviders } from "../features/settings/settings-service.js";
-import { isManagedModelId } from "../features/tutti-managed/credential-service.js";
 import { evaluateCodexImagegenDelegation } from "../generation/codex-imagegen-delegation.js";
 import {
   validateImageGenerationParams,
@@ -58,11 +54,6 @@ import { sanitizeErrorForClient } from "../utils/error-sanitizer.js";
 import type { ConnectionManager } from "../ws/connection-manager.js";
 import { createPipelineLogger } from "../ws/logger.js";
 import { createAgentBackend } from "./backends/index.js";
-import {
-  type AimcAgentFactory,
-  createAimcDeepAgent,
-  createDefaultModelSpecifier,
-} from "./deep-agent.js";
 import type { ImageAttachmentMetadata } from "./image-attachment-metadata.js";
 import {
   buildAgentImageJobPayload,
@@ -76,10 +67,7 @@ import {
   resolveResumeMode,
 } from "./run-orchestrator.js";
 import { inferAimcRuntimeTarget } from "./run-orchestrator.js";
-import { adaptDeepAgentStream } from "./runtimes/deepagent-events.js";
-import { loadNormalizedSessionHistory } from "./runtimes/history.js";
 import { createLocalAgentRuntimeProvider } from "./runtimes/local-agent.js";
-import { createServerDeepAgentRuntimeProvider } from "./runtimes/server-deepagent.js";
 import type { RuntimeExecutionContext } from "./runtimes/types.js";
 // execute 工具由 deepagents 内置提供（LocalShellBackend 作为 sandbox backend）
 // 不需要自定义代码执行工具
@@ -104,7 +92,7 @@ function inferRunCallerProvider(run: RuntimeRunRecord): string {
     const provider = run.modelOverride.split(":", 1)[0]?.trim();
     if (provider) return provider;
   }
-  return run.runtimeKind ?? "server-deepagent";
+  return run.runtimeProvider ?? "local-agent";
 }
 
 type CanvasSummaryClient = {
@@ -337,30 +325,6 @@ export function buildAttachmentDataMap(
   return map;
 }
 
-async function buildSessionHistoryMessages(
-  sessionId: string,
-  currentPrompt: string,
-  loadSessionMessages?: (sessionId: string) => Promise<ChatMessage[]>,
-): Promise<Array<HumanMessage | AIMessage>> {
-  const history = await loadNormalizedSessionHistory({
-    currentPrompt,
-    ...(loadSessionMessages ? { loadSessionMessages } : {}),
-    onError(error) {
-      console.warn(
-        "[runtime] Failed to load local chat history:",
-        error instanceof Error ? error.message : error,
-      );
-    },
-    sessionId,
-  });
-
-  return history.map((message) =>
-    message.role === "assistant"
-      ? new AIMessage(message.content)
-      : new HumanMessage(message.content),
-  );
-}
-
 type RuntimeRunStatus =
   | "accepted"
   | "canceled"
@@ -400,7 +364,6 @@ type PatchWorkspaceSettings = (input: {
 }) => Promise<WorkspaceSettings>;
 
 type CreateAgentRuntimeOptions = {
-  agentFactory?: AimcAgentFactory;
   agentRunStore?: {
     createRun(input: {
       agentTargetId?: string;
@@ -469,7 +432,7 @@ type CreateAgentRuntimeOptions = {
       Pick<LocalAgentRuntime<"local-agent", AgentRuntimeProvider>, "detect">
     >;
   loadSessionMessages?: (sessionId: string) => Promise<ChatMessage[]>;
-  model?: BaseLanguageModel | string;
+  model?: string;
   now?: () => string;
   patchWorkspaceSettings?: PatchWorkspaceSettings;
   resolveProjectWorkspaceRoot?: (input: {
@@ -488,24 +451,6 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
   const now = options.now ?? (() => new Date().toISOString());
   const runs = new Map<string, RuntimeRunRecord>();
   const runIdFactory = options.runIdFactory ?? (() => randomUUID());
-  const serverDeepAgentStore = new InMemoryStore();
-  const customAgentFactory = options.agentFactory;
-
-  const resolvedAgentFactory: AimcAgentFactory = customAgentFactory
-    ? (agentOptions) =>
-        customAgentFactory({
-          ...agentOptions,
-          store: serverDeepAgentStore,
-        })
-    : (agentOptions) =>
-        createAimcDeepAgent({
-          ...agentOptions,
-          store: serverDeepAgentStore,
-          ...(options.createUserClient
-            ? { createUserClient: options.createUserClient }
-            : {}),
-        });
-
   // ── Billing error helper: push WS event + abort run ──────────
   function pushBillingErrorAndAbort(
     run: { runId: string; conversationId: string; controller: AbortController },
@@ -646,24 +591,6 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
           ),
         )
       : []),
-    createServerDeepAgentRuntimeProvider({
-      adaptDeepAgentStream,
-      buildAttachmentDataMap,
-      buildSessionHistoryMessages,
-      buildUserMessage,
-      ...(options.connectionManager
-        ? { connectionManager: options.connectionManager }
-        : {}),
-      ...(options.createUserClient
-        ? { createUserClient: options.createUserClient }
-        : {}),
-      loadCanvasSummaryForRuntime,
-      ...(options.loadSessionMessages
-        ? { loadSessionMessages: options.loadSessionMessages }
-        : {}),
-      now,
-      resolvedAgentFactory,
-    }),
   ];
 
   const runtimeControlPlane =
@@ -1529,17 +1456,8 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
 
       try {
         // Runtime selection is pure and must happen before filesystem/backend
-        // preparation. In particular, local-agent runs must not first create a
-        // durable NFS sandbox intended for the server deep-agent.
-        const modelOverride =
-          isManagedModelId(run.modelOverride) && runtimeEnv.agentModel
-            ? runtimeEnv.agentModel
-            : run.modelOverride;
-        const resolvedModel = modelOverride
-          ? run.runtimeKind === "local-agent" || modelOverride.includes(":")
-            ? modelOverride
-            : createDefaultModelSpecifier({ agentModel: modelOverride })
-          : options.model;
+        // preparation. The local-agent backend always stays VM-local.
+        const resolvedModel = run.modelOverride ?? options.model;
         const resolvedRuntimeTarget = runtimeControlPlane.resolveRuntimeTarget({
           model: resolvedModel,
           requestedRuntimeKind: run.runtimeKind,
@@ -1593,33 +1511,18 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
         });
 
         const backendStartedAt = Date.now();
-        const backendPromise =
-          resolvedRuntimeTarget.kind === "local-agent"
-            ? createAgentBackend(runtimeEnv, run.canvasId, {
-                // Only the StoreBackend routes are used by the local tool
-                // gateway. Keep its disposable shell backend VM-local and do
-                // not materialize workspace skills here: the provider runDir
-                // owns the single local-agent skill copy.
-                // Create the UUID directory directly below the OS/runtime
-                // temp root. A shared named parent could be owned by a
-                // previous Unix identity in workspace-session-user mode.
-                sandboxRoot: tmpdir(),
-                workspaceSkills: [],
-              })
-            : workspaceSkillsPromise.then((workspaceSkills) =>
-                createAgentBackend(runtimeEnv, run.canvasId, {
-                  workspaceSkills,
-                }),
-              );
+        const backendPromise = createAgentBackend(runtimeEnv, run.canvasId, {
+          // Keep the local tool gateway sandbox VM-local. The provider runDir
+          // owns the materialized workspace skill copy.
+          sandboxRoot: tmpdir(),
+          workspaceSkills: [],
+        });
         const measuredBackendPromise = Promise.resolve(backendPromise).then(
           (result) => {
             rlog.info("backend_prepare_done", {
               elapsed_ms: Date.now() - backendStartedAt,
               runtime_kind: resolvedRuntimeTarget.kind,
-              sandbox_scope:
-                resolvedRuntimeTarget.kind === "local-agent"
-                  ? "runtime-local"
-                  : "configured",
+              sandbox_scope: "runtime-local",
             });
             return result;
           },

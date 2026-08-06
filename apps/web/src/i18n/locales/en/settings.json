@@ -3,31 +3,6 @@
     "actions": {
       "saving": "Saving..."
     },
-    "api": {
-      "addModel": "Add",
-      "addProviderModel": "Add {{provider}} model",
-      "browseModels": "Browse available models",
-      "chooseApiProviderModelBelow": "Choose an API provider model below.",
-      "chooseModel": "Choose model",
-      "customProvider": "Custom provider",
-      "defaultLlmModel": "Default LLM Model",
-      "defaultModelDescription": "Pick the workspace default from the model lists configured below.",
-      "defaultModelTitle": "Default model",
-      "getApiKey": "Get {{provider}} API Key",
-      "importDetected": "Import detected",
-      "noApiProviderModelSelected": "No API provider model selected",
-      "noModelsYet": "No models yet",
-      "noProviderModels": "No models configured yet for {{provider}}.",
-      "protocolCredentials": "Protocol credentials",
-      "protocolDescription": "Pick a protocol to edit its credentials.",
-      "providerModels": "{{provider}} models",
-      "providerModelsDescription": "Add, edit, or remove the model IDs you want this provider to expose.",
-      "quickFillProvider": "Quick fill provider",
-      "removeModel": "Remove",
-      "useModel": "Use {{model}}",
-      "workspaceModels": "Workspace models",
-      "workspaceModelsDescription": "Choose from the model lists configured under each provider."
-    },
     "feedback": {
       "updated": "Local agent settings updated.",
       "updateFailed": "Failed to update local agent settings. Please try again."
@@ -56,33 +31,8 @@
       "setupHint": "Use Tutti to install or sign in to the selected Agent Target, then rescan to enable local agent routes."
     },
     "source": {
-      "apiProvider": "API provider",
       "detected": "{{cliCount}} detected",
-      "localAgent": "Local agent",
-      "tuttiManaged": "Tutti Managed"
-    },
-    "tuttiManaged": {
-      "bridgeUnavailable": "Open AI Canvas inside Tutti to authorize managed models.",
-      "chooseModel": "Choose a Tutti Managed model below.",
-      "connect": "Connect",
-      "connected": "Connected",
-      "connectFirst": "Connect to Tutti Managed to import available models.",
-      "defaultModel": "Default model",
-      "description": "Use model credentials managed by Tutti without storing provider keys in this app.",
-      "disconnect": "Disconnect",
-      "emptyModels": "No Tutti Managed models are available. Configure providers in Tutti settings.",
-      "feedback": {
-        "connected": "Tutti Managed models connected.",
-        "connectFailed": "Unable to connect Tutti Managed models.",
-        "disconnected": "Tutti Managed models disconnected.",
-        "disconnectFailed": "Unable to disconnect Tutti Managed models.",
-        "openSettingsFailed": "Unable to open Tutti settings."
-      },
-      "manageInTutti": "Manage in Tutti",
-      "noModelSelected": "No Tutti Managed model selected",
-      "notConnected": "Not connected",
-      "reauthorize": "Reauthorize",
-      "title": "Tutti Managed"
+      "localAgent": "Local agent"
     }
   },
   "dialogTitle": "Settings",

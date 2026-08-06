@@ -168,22 +168,17 @@ export default interface Resources {
       "resizePanel": "调整聊天面板宽度"
     },
     "agentModelSelector": {
-      "apiProvider": "API provider",
       "assistantMode": "助手模式",
-      "connectTuttiManaged": "去设置连接",
       "customModelId": "自定义模型 ID",
       "loadModelsError": "模型加载失败，请重试。",
       "loadingModels": "正在加载模型…",
       "localAgent": "本地 Agent",
       "localAssistant": "本地助手",
-      "noApiProviderModels": "未配置 API provider 模型。",
       "noLocalCliModels": "未检测到本地 CLI 模型。",
-      "noTuttiManagedModels": "未连接 Tutti Managed 模型。",
       "openSettings": "打开 Agent 设置",
       "providerUnavailable": "此 Provider 当前不可用。",
       "settings": "设置",
       "tooltip": "选择 Agent 模型",
-      "tuttiManaged": "Tutti Managed",
       "useCustomModel": "使用自定义模型",
       "usesConfiguredDefaultRoute": "使用你配置的默认路由",
       "usesDefaultModel": "使用默认模型：{{model}}"
@@ -575,31 +570,6 @@ export default interface Resources {
       "actions": {
         "saving": "保存中..."
       },
-      "api": {
-        "addModel": "添加",
-        "addProviderModel": "添加 {{provider}} 模型",
-        "browseModels": "浏览可用模型",
-        "chooseApiProviderModelBelow": "请在下方选择 API provider 模型。",
-        "chooseModel": "选择模型",
-        "customProvider": "自定义 provider",
-        "defaultLlmModel": "默认 LLM 模型",
-        "defaultModelDescription": "从下方已配置的模型列表中选择工作区默认模型。",
-        "defaultModelTitle": "默认模型",
-        "getApiKey": "获取 {{provider}} API Key",
-        "importDetected": "导入已检测模型",
-        "noApiProviderModelSelected": "未选择 API provider 模型",
-        "noModelsYet": "暂无模型",
-        "noProviderModels": "{{provider}} 暂未配置模型。",
-        "protocolCredentials": "协议凭证",
-        "protocolDescription": "选择一个协议来编辑对应凭证。",
-        "providerModels": "{{provider}} 模型",
-        "providerModelsDescription": "添加、编辑或移除这个 provider 对外暴露的模型 ID。",
-        "quickFillProvider": "快速填充 provider",
-        "removeModel": "移除",
-        "useModel": "使用 {{model}}",
-        "workspaceModels": "工作区模型",
-        "workspaceModelsDescription": "从各 provider 下已配置的模型列表中选择。"
-      },
       "feedback": {
         "updateFailed": "本地 Agent 设置更新失败，请重试。",
         "updated": "本地 Agent 设置已更新。"
@@ -628,33 +598,8 @@ export default interface Resources {
         "setupHint": "请在 Tutti 中安装或登录所选 Agent Target，然后重新扫描以启用本地 Agent 路由。"
       },
       "source": {
-        "apiProvider": "API provider",
         "detected": "已检测 {{cliCount}} 个",
-        "localAgent": "本地 Agent",
-        "tuttiManaged": "Tutti Managed"
-      },
-      "tuttiManaged": {
-        "bridgeUnavailable": "请在 Tutti 中打开 AI Canvas 后授权托管模型。",
-        "chooseModel": "请在下方选择 Tutti Managed 模型。",
-        "connect": "连接",
-        "connectFirst": "连接 Tutti Managed 后导入可用模型。",
-        "connected": "已连接",
-        "defaultModel": "默认模型",
-        "description": "使用由 Tutti 托管的模型凭证，不在当前应用中保存 provider key。",
-        "disconnect": "断开",
-        "emptyModels": "暂无可用的 Tutti Managed 模型。请在 Tutti 设置中配置 provider。",
-        "feedback": {
-          "connectFailed": "无法连接 Tutti Managed 模型。",
-          "connected": "Tutti Managed 模型已连接。",
-          "disconnectFailed": "无法断开 Tutti Managed 模型。",
-          "disconnected": "Tutti Managed 模型已断开。",
-          "openSettingsFailed": "无法打开 Tutti 设置。"
-        },
-        "manageInTutti": "在 Tutti 中管理",
-        "noModelSelected": "未选择 Tutti Managed 模型",
-        "notConnected": "未连接",
-        "reauthorize": "重新授权",
-        "title": "Tutti Managed"
+        "localAgent": "本地 Agent"
       }
     },
     "dialogTitle": "设置",

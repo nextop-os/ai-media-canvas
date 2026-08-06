@@ -42,7 +42,7 @@ The caller provider is resolved per entry point.
 | Web chat model preference | Preference only | No |
 | Local-agent MCP manifest | Session `runtimeProvider` | Described to agent |
 | Local-agent MCP tool call | Session `runtimeProvider` | Yes for non-Codex |
-| Server-deepagent image job | Run runtime provider | Yes for non-Codex |
+| Local-agent image job | Run runtime provider | Yes for non-Codex |
 | CLI `/tutti/cli/generation/image` | `caller-provider`, or `external-cli` unless `direct-user: true` | Yes for non-Codex proxy calls |
 
 ## Workspace Setting
@@ -107,7 +107,7 @@ It returns:
 The guard is used in:
 
 - local-agent tool gateway,
-- server-deepagent `submitImageJob`,
+- local-agent `submitImageJob`,
 - HTTP job creation,
 - worker-side image generation execution,
 - CLI image generation.

@@ -81,10 +81,6 @@ const LOCAL_AGENT_MODEL_PROVIDER_IDS = new Set(
   createDefaultLocalAgentProviderPlugins().map((provider) => provider.id),
 );
 
-function hasLocalAgentModelProviderPrefix(model: string) {
-  return Boolean(getLocalAgentModelProvider(model));
-}
-
 export function getLocalAgentModelProvider(
   model: string | undefined,
 ): AgentRuntimeProvider | undefined {
@@ -93,37 +89,6 @@ export function getLocalAgentModelProvider(
   return LOCAL_AGENT_MODEL_PROVIDER_IDS.has(provider)
     ? (provider as AgentRuntimeProvider)
     : undefined;
-}
-
-export function isLocalAgentRuntimeRequested(input: {
-  model?: string | undefined;
-  runtimeKind?: RuntimeKind | undefined;
-  runtimeProvider?: AgentRuntimeProvider | undefined;
-}) {
-  const model = input.model;
-  return (
-    input.runtimeKind === "local-agent" ||
-    Boolean(input.runtimeProvider) ||
-    (typeof model === "string" && hasLocalAgentModelProviderPrefix(model))
-  );
-}
-
-export function shouldResolveLocalAgentTarget(input: {
-  agentTargetId?: string | undefined;
-  model?: string | undefined;
-  modelSource?: RunCreateRequest["modelSource"] | undefined;
-  runtimeKind?: RuntimeKind | undefined;
-  runtimeProvider?: AgentRuntimeProvider | undefined;
-}) {
-  return (
-    (!input.runtimeKind && input.modelSource === "local-agent") ||
-    input.runtimeKind === "local-agent" ||
-    Boolean(input.agentTargetId || input.runtimeProvider) ||
-    (!input.runtimeKind &&
-      isLocalAgentRuntimeRequested({
-        ...(input.model ? { model: input.model } : {}),
-      }))
-  );
 }
 
 export class AgentRunModelResolutionError extends Error {
@@ -140,20 +105,15 @@ export function resolveAgentRunModel(input: {
   const requestedModel = input.requestedModel?.trim();
   const defaultModel = input.defaultModel?.trim();
 
-  if (
-    !isLocalAgentRuntimeRequested({
-      ...(requestedModel ? { model: requestedModel } : {}),
-      ...(input.runtimeKind ? { runtimeKind: input.runtimeKind } : {}),
-      ...(input.runtimeProvider
-        ? { runtimeProvider: input.runtimeProvider }
-        : {}),
-    })
-  ) {
-    return requestedModel || defaultModel;
-  }
-
   if (!input.runtimeProvider) {
-    return requestedModel || defaultModel;
+    const resolvedModel = requestedModel || defaultModel;
+    const provider = resolvedModel ? getModelProvider(resolvedModel) : "";
+    if (provider && !LOCAL_AGENT_MODEL_PROVIDER_IDS.has(provider)) {
+      throw new AgentRunModelResolutionError(
+        `Model ${resolvedModel} is not a local-agent model. Select a model from a configured local agent.`,
+      );
+    }
+    return resolvedModel;
   }
 
   if (!requestedModel) {
@@ -212,16 +172,12 @@ export function inferAimcRuntimeTarget(
     }
   }
 
-  const serverRuntime = input.availableRuntimeTargets.find(
-    (target) => target.kind === "server-deepagent",
+  const localTargets = input.availableRuntimeTargets.filter(
+    (target) => target.kind === "local-agent",
   );
-  if (serverRuntime) {
-    return serverRuntime;
-  }
-
-  const fallbackTarget = input.availableRuntimeTargets[0];
+  const fallbackTarget = localTargets[0];
   if (!fallbackTarget) {
-    throw new Error("No runtime targets are available");
+    throw new Error("No local agent runtime targets are available");
   }
   return fallbackTarget;
 }

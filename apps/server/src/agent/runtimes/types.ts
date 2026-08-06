@@ -5,12 +5,9 @@ import type {
   ImageGenerationPreference,
   RunCreateRequest,
   RuntimeKind,
-  StreamEvent,
   VideoGenerationPreference,
   WorkspaceSettings,
 } from "@aimc/shared";
-import type { BaseLanguageModel } from "@langchain/core/language_models/base";
-import type { AIMessage, HumanMessage } from "@langchain/core/messages";
 import type {
   AgentEvent,
   LocalAgentProviderPlugin,
@@ -19,10 +16,8 @@ import type {
 
 import type { UserDataClient } from "../../auth/request.js";
 import type { ServerEnv } from "../../config/env.js";
-import type { ConnectionManager } from "../../ws/connection-manager.js";
 import type { createPipelineLogger } from "../../ws/logger.js";
 import type { createAgentBackend } from "../backends/index.js";
-import type { AimcAgentFactory } from "../deep-agent.js";
 import type { ImageAttachmentMetadata } from "../image-attachment-metadata.js";
 import type { createLocalToolGatewayService } from "../local-agent-host/tool-gateway.js";
 import type { SubmitImageJobFn } from "../tools/image-generate.js";
@@ -75,7 +70,7 @@ export type RuntimeRunRecord = {
 export type RuntimeExecutionContext = {
   backendResult: Awaited<ReturnType<typeof createAgentBackend>>;
   brandKitId: string | null;
-  resolvedModel: BaseLanguageModel | string | undefined;
+  resolvedModel: string | undefined;
   rlog: ReturnType<typeof createPipelineLogger>;
   run: RuntimeRunRecord;
   runtimeEnv: ServerEnv;
@@ -105,12 +100,6 @@ export type BuildUserMessage = (
 export type BuildAttachmentDataMap = (
   downloaded: Array<{ assetId: string; mimeType: string; base64: string }>,
 ) => Record<string, string>;
-
-export type BuildSessionHistoryMessages = (
-  sessionId: string,
-  currentPrompt: string,
-  loadSessionMessages?: (sessionId: string) => Promise<ChatMessage[]>,
-) => Promise<Array<HumanMessage | AIMessage>>;
 
 export type LoadCanvasSummaryForRuntime = (
   context: RuntimeExecutionContext,
@@ -154,26 +143,6 @@ export type LocalAgentToolRunner = (
     LocalAgentProviderPlugin<"local-agent", AgentRuntimeProvider>["run"]
   >[0],
 ) => AsyncGenerator<AgentEvent>;
-
-export type ServerDeepAgentRuntimeProviderDeps = {
-  adaptDeepAgentStream: (input: {
-    conversationId: string;
-    now: () => string;
-    runId: string;
-    sessionId: string;
-    signal: AbortSignal;
-    stream: AsyncIterable<unknown>;
-  }) => AsyncIterable<StreamEvent>;
-  buildAttachmentDataMap: BuildAttachmentDataMap;
-  buildSessionHistoryMessages: BuildSessionHistoryMessages;
-  buildUserMessage: BuildUserMessage;
-  connectionManager?: ConnectionManager;
-  createUserClient?: (accessToken: string) => unknown;
-  loadCanvasSummaryForRuntime: LoadCanvasSummaryForRuntime;
-  loadSessionMessages?: (sessionId: string) => Promise<ChatMessage[]>;
-  now: () => string;
-  resolvedAgentFactory: AimcAgentFactory;
-};
 
 export type PersistImageClientFactory = (accessToken: string) => UserDataClient;
 

@@ -1,4 +1,3 @@
-import { createDefaultLocalAgentProviderPlugins } from "@tutti-os/agent-acp-kit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,17 +8,15 @@ import {
   getLocalAgentModelProvider,
   inferAimcRuntimeTarget,
   inferRuntimeKind,
-  isLocalAgentRuntimeRequested,
   projectStreamEventToAssistantMessage,
   resolveAgentRunModel,
   resolveResumeMode,
-  shouldResolveLocalAgentTarget,
 } from "./run-orchestrator.js";
 
 function createRuntimeProvider(runtime: {
   id: string;
-  kind: "server-deepagent" | "local-agent";
-  provider?: "codex";
+  kind: "local-agent";
+  provider?: "claude-code" | "codex";
   mode: "server" | "local";
   status?: "online" | "offline" | "degraded";
   maxConcurrentRuns?: number;
@@ -402,7 +399,8 @@ describe("agent run orchestrator", () => {
       resolveResumeMode({
         previousRuntimeKind: "local-agent",
         previousRuntimeProvider: "codex",
-        nextRuntimeKind: "server-deepagent",
+        nextRuntimeKind: "local-agent",
+        nextRuntimeProvider: "claude-code",
       }),
     ).toBe("handoff");
 
@@ -418,60 +416,25 @@ describe("agent run orchestrator", () => {
     ).toBe("handoff");
   });
 
-  it("requires exact target resolution for model-only and workspace-default local runs", () => {
-    expect(shouldResolveLocalAgentTarget({ model: "codex:gpt-5.4" })).toBe(
-      true,
-    );
-    expect(
-      shouldResolveLocalAgentTarget({
-        model: "codex:default",
-        modelSource: "local-agent",
-      }),
-    ).toBe(true);
-    expect(shouldResolveLocalAgentTarget({ model: "openai:gpt-5.4" })).toBe(
-      false,
-    );
-    expect(
-      shouldResolveLocalAgentTarget({
-        model: "codex:gpt-5.4",
-        runtimeKind: "server-deepagent",
-      }),
-    ).toBe(false);
-  });
-
-  it("preserves an explicit server runtime over a local workspace default", () => {
-    expect(
-      shouldResolveLocalAgentTarget({
-        model: "codex:gpt-5.4",
-        modelSource: "local-agent",
-        runtimeKind: "server-deepagent",
-      }),
-    ).toBe(false);
-  });
-
   it("extracts only registered local-agent model providers", () => {
     expect(getLocalAgentModelProvider("codex:gpt-5.4")).toBe("codex");
     expect(getLocalAgentModelProvider("openai:gpt-5.4")).toBeUndefined();
   });
 
-  it("keeps server-deepagent as the default runtime", () => {
+  it("selects the first local runtime when no model provider is specified", () => {
     expect(
       inferAimcRuntimeTarget({
-        availableRuntimeTargets: [
-          { kind: "server-deepagent" },
-          { kind: "local-agent", provider: "codex" },
-        ],
+        availableRuntimeTargets: [{ kind: "local-agent", provider: "codex" }],
         model: "gpt-4.1",
         requestedRuntimeKind: undefined,
       }),
-    ).toEqual({ kind: "server-deepagent" });
+    ).toEqual({ kind: "local-agent", provider: "codex" });
   });
 
   it("selects a local runtime when the model prefix matches a local provider", () => {
     expect(
       inferAimcRuntimeTarget({
         availableRuntimeTargets: [
-          { kind: "server-deepagent" },
           { kind: "local-agent", provider: "codex" },
           { kind: "local-agent", provider: "claude-code" },
         ],
@@ -479,27 +442,6 @@ describe("agent run orchestrator", () => {
         requestedRuntimeKind: undefined,
       }),
     ).toEqual({ kind: "local-agent", provider: "codex" });
-  });
-
-  it("detects local-agent requests from provider model prefixes", () => {
-    expect(isLocalAgentRuntimeRequested({ runtimeKind: "local-agent" })).toBe(
-      true,
-    );
-    expect(
-      isLocalAgentRuntimeRequested({ runtimeProvider: "claude-code" }),
-    ).toBe(true);
-    for (const provider of createDefaultLocalAgentProviderPlugins().map(
-      (item) => item.id,
-    )) {
-      expect(
-        isLocalAgentRuntimeRequested({ model: `${provider}:default` }),
-      ).toBe(true);
-    }
-    expect(isLocalAgentRuntimeRequested({ model: "default" })).toBe(false);
-    expect(isLocalAgentRuntimeRequested({ model: ":default" })).toBe(false);
-    expect(
-      isLocalAgentRuntimeRequested({ model: "agnes:agnes-2.0-flash" }),
-    ).toBe(false);
   });
 
   it("uses the local provider default model for local-agent runs without a requested model", () => {
@@ -525,10 +467,7 @@ describe("agent run orchestrator", () => {
   it("fills the only local provider when a legacy request omits it", () => {
     expect(
       inferAimcRuntimeTarget({
-        availableRuntimeTargets: [
-          { kind: "server-deepagent" },
-          { kind: "local-agent", provider: "codex" },
-        ],
+        availableRuntimeTargets: [{ kind: "local-agent", provider: "codex" }],
         model: "codex:gpt-5.4",
         requestedRuntimeKind: "local-agent",
       }),
@@ -538,9 +477,10 @@ describe("agent run orchestrator", () => {
   it("defaults to the single registered runtime when no selector is provided", () => {
     const controlPlane = createRuntimeControlPlane([
       createRuntimeProvider({
-        id: "server-deepagent",
-        kind: "server-deepagent",
-        mode: "server",
+        id: "local-agent:codex",
+        kind: "local-agent",
+        mode: "local",
+        provider: "codex",
       }),
     ]);
 
@@ -549,21 +489,22 @@ describe("agent run orchestrator", () => {
         model: "codex:gpt-5.4",
         requestedRuntimeKind: undefined,
       }),
-    ).toEqual({ kind: "server-deepagent" });
+    ).toEqual({ kind: "local-agent", provider: "codex" });
   });
 
   it("throws when multiple runtimes are registered without a selector", () => {
     const controlPlane = createRuntimeControlPlane([
       createRuntimeProvider({
-        id: "server-deepagent",
-        kind: "server-deepagent",
-        mode: "server",
-      }),
-      createRuntimeProvider({
         id: "local-agent:codex",
         kind: "local-agent",
         mode: "local",
         provider: "codex",
+      }),
+      createRuntimeProvider({
+        id: "local-agent:claude-code",
+        kind: "local-agent",
+        mode: "local",
+        provider: "claude-code",
       }),
     ]);
 
@@ -578,10 +519,7 @@ describe("agent run orchestrator", () => {
   it("returns the requested runtime kind before applying fallback inference", () => {
     expect(
       inferRuntimeKind({
-        availableRuntimeTargets: [
-          { kind: "server-deepagent" },
-          { kind: "local-agent", provider: "codex" },
-        ],
+        availableRuntimeTargets: [{ kind: "local-agent", provider: "codex" }],
         model: "codex:gpt-5.4",
         requestedRuntimeKind: "local-agent",
         requestedRuntimeProvider: "codex",
@@ -592,11 +530,6 @@ describe("agent run orchestrator", () => {
   it("does not schedule offline runtimes", () => {
     const controlPlane = createRuntimeControlPlane([
       createRuntimeProvider({
-        id: "server-deepagent",
-        kind: "server-deepagent",
-        mode: "server",
-      }),
-      createRuntimeProvider({
         id: "local-agent:codex",
         kind: "local-agent",
         mode: "local",
@@ -605,9 +538,7 @@ describe("agent run orchestrator", () => {
       }),
     ]);
 
-    expect(controlPlane.listRuntimeTargets()).toEqual([
-      { kind: "server-deepagent" },
-    ]);
+    expect(controlPlane.listRuntimeTargets()).toEqual([]);
     expect(() =>
       controlPlane.resolveRuntimeTarget({
         model: "codex:gpt-5.4",

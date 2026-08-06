@@ -119,7 +119,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Agent Runs" });
-    const session = store.createSession(project.primaryCanvas.id, "Run session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Run session",
+    );
     expect(session).not.toBeNull();
 
     store.createAgentRun({
@@ -128,7 +131,7 @@ describe("createLocalStore", () => {
       model: "agnes:agnes-2.0-flash",
       previousRunId: "run-previous",
       resumeMode: "handoff",
-      runtimeKind: "server-deepagent",
+      runtimeKind: "local-agent",
       runId: "run-1",
       sessionId: session!.id,
       threadId: "thread:run-session",
@@ -179,7 +182,7 @@ describe("createLocalStore", () => {
       provider_session_id: "provider-session-1",
       resume_mode: "handoff",
       resume_token: "resume-token-1",
-      runtime_kind: "server-deepagent",
+      runtime_kind: "local-agent",
       runtime_provider: null,
       session_id: session!.id,
       status: "completed",
@@ -198,7 +201,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Session cleanup" });
-    const session = store.createSession(project.primaryCanvas.id, "Deleting session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Deleting session",
+    );
     expect(session).not.toBeNull();
 
     const assistantMessage = store.createMessage(session!.id, {
@@ -212,7 +218,7 @@ describe("createLocalStore", () => {
       assistantMessageId: assistantMessage!.id,
       canvasId: project.primaryCanvas.id,
       model: "agnes:agnes-2.0-flash",
-      runtimeKind: "server-deepagent",
+      runtimeKind: "local-agent",
       runId: "run-delete-session",
       sessionId: session!.id,
     });
@@ -421,7 +427,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Agent Transcript" });
-    const session = store.createSession(project.primaryCanvas.id, "Transcript session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Transcript session",
+    );
     expect(session).not.toBeNull();
 
     const assistantMessage = store.createMessage(session!.id, {
@@ -520,7 +529,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Terminal Events" });
-    const session = store.createSession(project.primaryCanvas.id, "Terminal session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Terminal session",
+    );
     expect(session).not.toBeNull();
 
     store.createAgentRun({
@@ -556,9 +568,9 @@ describe("createLocalStore", () => {
       eventId: "run-terminal:1",
       seq: 1,
     });
-    expect(store.listAgentRunEvents("run-terminal").map((entry) => entry.event.type)).toEqual([
-      "run.canceled",
-    ]);
+    expect(
+      store.listAgentRunEvents("run-terminal").map((entry) => entry.event.type),
+    ).toEqual(["run.canceled"]);
   });
 
   it("finds the latest active run for a specific canvas and session", () => {
@@ -587,7 +599,7 @@ describe("createLocalStore", () => {
     store.createAgentRun({
       canvasId: project.primaryCanvas.id,
       model: "codex:gpt-5.4",
-      runtimeKind: "server-deepagent",
+      runtimeKind: "local-agent",
       runId: "run-b",
       sessionId: sessionB!.id,
     });
@@ -620,7 +632,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Canvas Replay" });
-    const session = store.createSession(project.primaryCanvas.id, "Replay session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Replay session",
+    );
     expect(session).not.toBeNull();
 
     store.createAgentRun({
@@ -681,7 +696,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Interrupted Run" });
-    const session = store.createSession(project.primaryCanvas.id, "Interrupted session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Interrupted session",
+    );
     expect(session).not.toBeNull();
 
     store.createAgentRun({
@@ -712,7 +730,9 @@ describe("createLocalStore", () => {
       assetBaseUrl: "http://127.0.0.1:3001",
       dataRoot,
     });
-    const recovered = reopenedStore.recoverInterruptedAgentRuns("Recovered interrupted run.");
+    const recovered = reopenedStore.recoverInterruptedAgentRuns(
+      "Recovered interrupted run.",
+    );
     const run = reopenedStore.getAgentRun("run-interrupted");
     const events = reopenedStore.listAgentRunEvents("run-interrupted");
 
@@ -737,7 +757,10 @@ describe("createLocalStore", () => {
     });
 
     const project = store.createProject({ name: "Archive Me" });
-    const session = store.createSession(project.primaryCanvas.id, "Archive session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Archive session",
+    );
 
     expect(session).not.toBeNull();
     expect(store.archiveProject(project.id)).toBe(true);
@@ -801,7 +824,10 @@ describe("createLocalStore", () => {
       mimeType: "image/png",
       projectId: project.id,
     });
-    const session = store.createSession(project.primaryCanvas.id, "Attachment Session");
+    const session = store.createSession(
+      project.primaryCanvas.id,
+      "Attachment Session",
+    );
 
     expect(session).not.toBeNull();
     store.createMessage(session!.id, {
@@ -852,7 +878,9 @@ describe("createLocalStore", () => {
 
     expect(catalog.some((skill) => skill.installed)).toBe(true);
     expect(catalog.some((skill) => skill.name === "Canvas Design")).toBe(true);
-    const canvasDirectorSkill = catalog.find((skill) => skill.name === "Canvas Director");
+    const canvasDirectorSkill = catalog.find(
+      (skill) => skill.name === "Canvas Director",
+    );
     expect(canvasDirectorSkill).toBeDefined();
     const canvasDirectorDetail = store.getSkillDetail(canvasDirectorSkill!.id);
     expect(canvasDirectorDetail?.skillContent).toContain(
@@ -864,14 +892,18 @@ describe("createLocalStore", () => {
 
     const bundled = catalog.find((skill) => skill.installed) ?? catalog[0];
     expect(bundled).toBeDefined();
-    const localDirectorySkill = catalog.find((skill) => skill.name === "Canvas Design");
+    const localDirectorySkill = catalog.find(
+      (skill) => skill.name === "Canvas Design",
+    );
     expect(localDirectorySkill).toBeDefined();
     const localDirectoryDetail = store.getSkillDetail(localDirectorySkill!.id);
     expect(localDirectoryDetail?.metadata).toMatchObject({
       scope: "local-directory",
       path: "skills/canvas-design/SKILL.md",
     });
-    expect(localDirectoryDetail?.metadata.files).toContain("canvas-fonts/ArsenalSC-Regular.ttf");
+    expect(localDirectoryDetail?.metadata.files).toContain(
+      "canvas-fonts/ArsenalSC-Regular.ttf",
+    );
 
     const imported = store.importSkill({
       files: [

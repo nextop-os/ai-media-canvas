@@ -3,10 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "exclude": [
-    "src/agent/**/*",
-    "src/ws/**/*",
-    "src/features/agent-runs/**/*",
-    "src/http/runs.ts"
-  ]
+  "exclude": ["src/agent/**/*", "src/ws/**/*", "src/features/agent-runs/**/*"]
 }

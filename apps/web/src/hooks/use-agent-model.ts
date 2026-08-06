@@ -45,11 +45,7 @@ let cachedAgentTargetRaw: string | null | undefined;
 let cachedSelection: AgentModelSelection = EMPTY_SELECTION;
 
 function normalizeSource(value: string | null): AgentModelSource | null {
-  return value === "local-agent" ||
-    value === "tutti-managed" ||
-    value === "api-provider"
-    ? value
-    : null;
+  return value === "local-agent" ? value : null;
 }
 
 function getSnapshot(): AgentModelSelection {

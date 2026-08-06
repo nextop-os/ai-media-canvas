@@ -35,9 +35,6 @@ import type {
   ChatMessageCreateRequest,
   ChatSessionSummary,
   ImageGenerationPayload,
-  TuttiManagedConnection,
-  TuttiManagedModel,
-  TuttiManagedProviderId,
   ProjectCreateRequest,
   ProjectSummary,
   ProjectUpdateRequest,
@@ -98,12 +95,6 @@ const EMPTY_WORKSPACE_SETTINGS: WorkspaceSettings = {
   volcesBaseUrl: "",
   codexImagegenDelegation: "ask",
 };
-const EMPTY_TUTTI_MANAGED_CONNECTION: TuttiManagedConnection = {
-  connected: false,
-  providers: [],
-  models: [],
-};
-
 function normalizeProviderModelsForStore(
   providerModels: Partial<WorkspaceSettings["providerModels"]> | undefined,
 ): WorkspaceSettings["providerModels"] {
@@ -121,83 +112,13 @@ function normalizeProviderModelsForStore(
 function normalizeAgentModelSourceForStore(
   source: string | undefined,
 ): WorkspaceSettings["defaultModelSource"] | undefined {
-  return source === "local-agent" ||
-    source === "tutti-managed" ||
-    source === "api-provider"
-    ? source
-    : undefined;
+  return source === "local-agent" ? source : undefined;
 }
 
 function normalizeCodexImagegenDelegationForStore(
   value: string | undefined,
 ): WorkspaceSettings["codexImagegenDelegation"] {
   return value === "always" || value === "never" ? value : "ask";
-}
-
-function normalizeTuttiManagedProviders(
-  providers: readonly string[] | undefined,
-): TuttiManagedProviderId[] {
-  const supported = new Set(["agnes", "openai", "anthropic"]);
-  const seen = new Set<string>();
-  const normalized: TuttiManagedProviderId[] = [];
-
-  for (const provider of providers ?? []) {
-    const value = provider.trim();
-    if (!supported.has(value) || seen.has(value)) continue;
-    seen.add(value);
-    normalized.push(value as TuttiManagedProviderId);
-  }
-
-  return normalized;
-}
-
-function normalizeTuttiManagedModels(
-  models: readonly TuttiManagedModel[] | undefined,
-): TuttiManagedModel[] {
-  const seen = new Set<string>();
-  const normalized: TuttiManagedModel[] = [];
-
-  for (const model of models ?? []) {
-    const provider = model.provider.trim();
-    const id = model.id.trim();
-    const name = model.name.trim() || id;
-    if (!id) continue;
-    const [normalizedProvider] = normalizeTuttiManagedProviders([provider]);
-    if (!normalizedProvider) continue;
-    const modelId = id.includes(":") ? id : `${normalizedProvider}:${id}`;
-    if (seen.has(modelId)) continue;
-    seen.add(modelId);
-    normalized.push({
-      id: modelId,
-      name,
-      provider: normalizedProvider,
-    });
-  }
-
-  return normalized;
-}
-
-function normalizeTuttiManagedConnection(
-  connection: TuttiManagedConnection,
-): TuttiManagedConnection {
-  if (!connection.connected || !connection.grantRef?.trim()) {
-    return { ...EMPTY_TUTTI_MANAGED_CONNECTION };
-  }
-
-  const models = normalizeTuttiManagedModels(connection.models);
-  const providers = normalizeTuttiManagedProviders(
-    connection.providers.length > 0
-      ? connection.providers
-      : models.map((model) => model.provider),
-  );
-
-  return {
-    connected: true,
-    grantRef: connection.grantRef.trim(),
-    ...(connection.expiresAt ? { expiresAt: connection.expiresAt } : {}),
-    providers,
-    models,
-  };
 }
 
 type AssetRow = {
@@ -422,14 +343,6 @@ export function createLocalStore(options: {
       volces_api_key TEXT NOT NULL DEFAULT '',
       volces_base_url TEXT NOT NULL DEFAULT '',
       codex_imagegen_delegation TEXT NOT NULL DEFAULT 'ask'
-    );
-    CREATE TABLE IF NOT EXISTS tutti_managed_model_connection (
-      workspace_id TEXT PRIMARY KEY,
-      grant_ref TEXT NOT NULL,
-      expires_at TEXT,
-      providers_json TEXT NOT NULL DEFAULT '[]',
-      models_json TEXT NOT NULL DEFAULT '[]',
-      updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
@@ -1316,84 +1229,6 @@ export function createLocalStore(options: {
     }
 
     return getWorkspaceSettings();
-  }
-
-  function getTuttiManagedConnection(): TuttiManagedConnection {
-    const row = db
-      .prepare(
-        `
-          SELECT grant_ref, expires_at, providers_json, models_json
-          FROM tutti_managed_model_connection
-          WHERE workspace_id = ?
-        `,
-      )
-      .get(LOCAL_WORKSPACE_ID) as
-      | {
-          grant_ref: string;
-          expires_at: string | null;
-          providers_json: string;
-          models_json: string;
-        }
-      | undefined;
-
-    if (!row) {
-      return { ...EMPTY_TUTTI_MANAGED_CONNECTION };
-    }
-
-    return normalizeTuttiManagedConnection({
-      connected: true,
-      grantRef: row.grant_ref,
-      ...(row.expires_at ? { expiresAt: row.expires_at } : {}),
-      providers: parseJson<TuttiManagedProviderId[]>(row.providers_json, []),
-      models: parseJson<TuttiManagedModel[]>(row.models_json, []),
-    });
-  }
-
-  function updateTuttiManagedConnection(
-    connection: TuttiManagedConnection,
-  ): TuttiManagedConnection {
-    const normalized = normalizeTuttiManagedConnection(connection);
-    if (!normalized.connected || !normalized.grantRef) {
-      clearTuttiManagedConnection();
-      return { ...EMPTY_TUTTI_MANAGED_CONNECTION };
-    }
-
-    db.prepare(
-      `
-        INSERT INTO tutti_managed_model_connection (
-          workspace_id,
-          grant_ref,
-          expires_at,
-          providers_json,
-          models_json,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(workspace_id) DO UPDATE SET
-          grant_ref = excluded.grant_ref,
-          expires_at = excluded.expires_at,
-          providers_json = excluded.providers_json,
-          models_json = excluded.models_json,
-          updated_at = excluded.updated_at
-      `,
-    ).run(
-      LOCAL_WORKSPACE_ID,
-      normalized.grantRef,
-      normalized.expiresAt ?? null,
-      JSON.stringify(normalized.providers),
-      JSON.stringify(normalized.models),
-      new Date().toISOString(),
-    );
-
-    return getTuttiManagedConnection();
-  }
-
-  function clearTuttiManagedConnection() {
-    db.prepare(
-      `
-        DELETE FROM tutti_managed_model_connection
-        WHERE workspace_id = ?
-      `,
-    ).run(LOCAL_WORKSPACE_ID);
   }
 
   function getAssetRow(assetId: string) {
@@ -4155,7 +3990,10 @@ export function createLocalStore(options: {
 
   function generatedCanvasAssetIndex() {
     const assetIds = new Set<string>();
-    const owners = new Map<string, { projectId: string; projectName: string }>();
+    const owners = new Map<
+      string,
+      { projectId: string; projectName: string }
+    >();
     const rows = db
       .prepare(
         `
@@ -4706,9 +4544,6 @@ export function createLocalStore(options: {
     updateProfile,
     getWorkspaceSettings,
     updateWorkspaceSettings,
-    getTuttiManagedConnection,
-    updateTuttiManagedConnection,
-    clearTuttiManagedConnection,
     listProjects,
     createProject,
     getProject,

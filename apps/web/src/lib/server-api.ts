@@ -22,9 +22,6 @@ import type {
   SkillListResponse,
   SkillToggleRequest,
   StreamEvent,
-  TuttiManagedConnectionResponse,
-  TuttiManagedGrantCreateRequest,
-  TuttiManagedGrantResponse,
   UploadResponse,
   ViewerResponse,
   WorkspaceSettingsResponse,
@@ -250,39 +247,6 @@ export async function fetchModels(
     })
     .catch(() => {});
   return promise;
-}
-
-export async function fetchTuttiManagedConnection(): Promise<TuttiManagedConnectionResponse> {
-  const response = await fetch(
-    `${getServerBaseUrl()}/api/tutti/managed-model-connection`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) return handleErrorResponse(response);
-  return (await response.json()) as TuttiManagedConnectionResponse;
-}
-
-export async function connectTuttiManagedModels(
-  data: TuttiManagedGrantCreateRequest,
-): Promise<TuttiManagedGrantResponse> {
-  const response = await fetch(
-    `${getServerBaseUrl()}/api/tutti/managed-model-connection/grant`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(data),
-    },
-  );
-  if (!response.ok) return handleErrorResponse(response);
-  return (await response.json()) as TuttiManagedGrantResponse;
-}
-
-export async function disconnectTuttiManagedModels(): Promise<TuttiManagedConnectionResponse> {
-  const response = await fetch(
-    `${getServerBaseUrl()}/api/tutti/managed-model-connection`,
-    { method: "DELETE" },
-  );
-  if (!response.ok) return handleErrorResponse(response);
-  return (await response.json()) as TuttiManagedConnectionResponse;
 }
 
 // --- Chat Session API ---

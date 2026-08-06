@@ -1245,11 +1245,7 @@ export function ChatSidebar({
       const modelSourceRaw = sessionStorage.getItem(
         INITIAL_AGENT_MODEL_SOURCE_KEY,
       );
-      if (
-        modelSourceRaw === "local-agent" ||
-        modelSourceRaw === "tutti-managed" ||
-        modelSourceRaw === "api-provider"
-      ) {
+      if (modelSourceRaw === "local-agent") {
         storedAgentModelSource = modelSourceRaw;
         sessionStorage.removeItem(INITIAL_AGENT_MODEL_SOURCE_KEY);
       }

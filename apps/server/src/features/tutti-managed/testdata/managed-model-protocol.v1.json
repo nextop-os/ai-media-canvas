@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "commands": {
-    "managed-model.grant.exchange": {"argv": ["managed-model", "grant", "exchange", "--input-json", "-"], "input": {"contextToken": "context-test", "grantCode": "grant-test", "nonce": "nonce-test", "state": "state-test"}},
-    "managed-model.models": {"argv": ["managed-model", "models", "--input-json", "-"], "input": {"grantRef": "grant-ref-test"}},
-    "managed-model.credential": {"argv": ["managed-model", "credential", "--input-json", "-"], "input": {"grantRef": "grant-ref-test", "provider": "openai", "model": "gpt-test", "capability": "agent"}},
-    "managed-model.revoke": {"argv": ["managed-model", "revoke", "--input-json", "-"], "input": {"grantRef": "grant-ref-test"}}
-  }
-}

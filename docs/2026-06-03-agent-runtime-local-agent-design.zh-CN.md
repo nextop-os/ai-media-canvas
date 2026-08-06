@@ -4,6 +4,11 @@ Date: 2026-06-03
 Project: `ai-media-canvas`
 Status: Draft
 
+> 历史文档：2026-08-06 已移除 `server-deepagent`。本文描述的双 runtime
+> 方案不再是当前实现依据；当前 Agent runtime 仅支持 `local-agent`，请以
+> [server-deepagent 移除记录](./2026-08-06-server-deepagent-removal.zh-CN.md)
+> 为准。
+
 > 实施顺序与阶段交付请先读执行文档：
 > [2026-06-04-local-agent-runtime-execution-plan.zh-CN.md](/Users/wwcome/work/demo/ai-media-canvas/docs/2026-06-04-local-agent-runtime-execution-plan.zh-CN.md)
 

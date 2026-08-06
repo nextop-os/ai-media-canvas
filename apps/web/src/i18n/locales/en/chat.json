@@ -5,22 +5,17 @@
     "resizePanel": "Resize chat panel"
   },
   "agentModelSelector": {
-    "apiProvider": "API provider",
     "assistantMode": "Assistant Mode",
-    "connectTuttiManaged": "Connect in settings",
     "customModelId": "Custom model ID",
     "loadingModels": "Loading models…",
     "loadModelsError": "Models could not be loaded. Try again.",
     "localAgent": "Local agent",
     "localAssistant": "Local Assistant",
-    "noApiProviderModels": "No API provider models configured.",
     "noLocalCliModels": "No local CLI models detected.",
-    "noTuttiManagedModels": "No Tutti Managed models connected.",
     "openSettings": "Open agent settings",
     "providerUnavailable": "This provider is unavailable.",
     "settings": "Settings",
     "tooltip": "Select agent model",
-    "tuttiManaged": "Tutti Managed",
     "useCustomModel": "Use custom model",
     "usesConfiguredDefaultRoute": "Uses your configured default route",
     "usesDefaultModel": "Uses default model: {{model}}"

@@ -522,9 +522,7 @@ describe("ChatSidebar", () => {
   });
 
   it("preserves the explicit initial image model preference before models load", async () => {
-    fetchImageModelsMock.mockImplementationOnce(
-      () => new Promise(() => {}),
-    );
+    fetchImageModelsMock.mockImplementationOnce(() => new Promise(() => {}));
     sessionStorage.setItem(
       INITIAL_IMAGE_GENERATION_PREFERENCE_KEY,
       JSON.stringify({
@@ -676,12 +674,6 @@ describe("ChatSidebar", () => {
         }),
         expect.any(Function),
       ),
-    );
-    expect(mockWs.startRun).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        runtimeKind: "server-deepagent",
-      }),
-      expect.anything(),
     );
   });
 

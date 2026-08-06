@@ -13,10 +13,6 @@ import {
   projectIdSchema,
   projectSummarySchema,
   runIdSchema,
-  tuttiManagedConnectChallengeSchema,
-  tuttiManagedConnectionSchema,
-  tuttiManagedGrantRequestSchema,
-  tuttiManagedPublicConnectionSchema,
   viewerProfileSchema,
   workspaceSettingsSchema,
 } from "./contracts.js";
@@ -174,17 +170,6 @@ export const modelListResponseSchema = z.object({
 
 export const modelListRequestSchema = z.object({});
 
-export const tuttiManagedConnectionResponseSchema = z.object({
-  connectChallenge: tuttiManagedConnectChallengeSchema.optional(),
-  connection: tuttiManagedPublicConnectionSchema,
-});
-
-export const tuttiManagedGrantResponseSchema =
-  tuttiManagedConnectionResponseSchema;
-
-export const tuttiManagedGrantCreateRequestSchema =
-  tuttiManagedGrantRequestSchema;
-
 export const sessionListResponseSchema = z.object({
   sessions: z.array(chatSessionSummarySchema),
 });
@@ -217,16 +202,6 @@ export type WorkspaceSettingsUpdateRequest = z.infer<
 >;
 export type ModelListResponse = z.infer<typeof modelListResponseSchema>;
 export type ModelListRequest = z.infer<typeof modelListRequestSchema>;
-export type TuttiManagedConnectionResponse = z.infer<
-  typeof tuttiManagedConnectionResponseSchema
->;
-export type TuttiManagedGrantCreateRequest = z.infer<
-  typeof tuttiManagedGrantCreateRequestSchema
->;
-export type TuttiManagedGrantResponse = z.infer<
-  typeof tuttiManagedGrantResponseSchema
->;
-
 export const uploadResponseSchema = z.object({
   asset: assetObjectSchema,
   url: z.string().min(1),
