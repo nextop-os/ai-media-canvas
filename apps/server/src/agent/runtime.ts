@@ -393,6 +393,7 @@ type CreateAgentRuntimeOptions = {
     getRun?(runId: string):
       | {
           agent_target_id?: string | null;
+          assistant_message_id?: string | null;
           id: string;
           previous_run_id?: string | null;
           provider_session_id?: string | null;
@@ -637,8 +638,55 @@ export function createAgentRunService(options: CreateAgentRuntimeOptions) {
         userId?: string;
       },
     ): RunCreateResponse {
-      const runId = runIdFactory();
+      const runId = input.clientRequestId ?? runIdFactory();
       const runInput = input;
+      const existingMemoryRun = input.clientRequestId
+        ? runs.get(runId)
+        : undefined;
+      const existingPersistedRun =
+        existingMemoryRun || !input.clientRequestId
+          ? undefined
+          : options.agentRunStore?.getRun?.(runId);
+      const existingRun = existingMemoryRun ?? existingPersistedRun;
+      if (existingRun) {
+        const existingSessionId = existingMemoryRun
+          ? existingMemoryRun.sessionId
+          : existingPersistedRun?.session_id;
+        const existingAgentTargetId = existingMemoryRun
+          ? existingMemoryRun.agentTargetId
+          : existingPersistedRun?.agent_target_id;
+        const existingAssistantMessageId = existingMemoryRun
+          ? existingMemoryRun.assistantMessageId
+          : existingPersistedRun?.assistant_message_id;
+        const existingRuntimeKind = existingMemoryRun
+          ? existingMemoryRun.runtimeKind
+          : existingPersistedRun?.runtime_kind;
+        const existingRuntimeProvider = existingMemoryRun
+          ? existingMemoryRun.runtimeProvider
+          : existingPersistedRun?.runtime_provider;
+        if (existingSessionId !== input.sessionId) {
+          throw new Error(
+            `clientRequestId is already bound to another session: ${runId}`,
+          );
+        }
+        return {
+          ...(existingAgentTargetId
+            ? { agentTargetId: existingAgentTargetId }
+            : {}),
+          ...(existingAssistantMessageId
+            ? { assistantMessageId: existingAssistantMessageId }
+            : {}),
+          conversationId: input.conversationId,
+          reused: true,
+          runId,
+          ...(existingRuntimeKind ? { runtimeKind: existingRuntimeKind } : {}),
+          ...(existingRuntimeProvider
+            ? { runtimeProvider: existingRuntimeProvider }
+            : {}),
+          sessionId: input.sessionId,
+          status: "accepted",
+        };
+      }
       const requestedRuntimeKind =
         runOptions?.runtimeKind ?? runInput.runtimeKind;
       const requestedRuntimeProvider =

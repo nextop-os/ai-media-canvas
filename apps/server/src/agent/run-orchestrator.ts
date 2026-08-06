@@ -420,6 +420,7 @@ export type AgentRunRecordStore = {
   getRun?(runId: string):
     | {
         agent_target_id?: string | null;
+        assistant_message_id?: string | null;
         id: string;
         previous_run_id?: string | null;
         provider_session_id?: string | null;

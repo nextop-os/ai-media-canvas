@@ -126,18 +126,21 @@ export function useCreateProject() {
           ...(parentPath ? { parentPath } : {}),
         });
         const canvasId = result.project.primaryCanvas.id;
-
-        const url = opts?.prompt
-          ? `/canvas?id=${canvasId}&prompt=${encodeURIComponent(opts.prompt)}`
-          : `/canvas?id=${canvasId}`;
+        const hasInitialRequest = Boolean(
+          opts?.prompt || opts?.attachments?.length,
+        );
+        const clientRequestId = hasInitialRequest ? crypto.randomUUID() : null;
+        const params = new URLSearchParams({ id: canvasId });
+        if (opts?.prompt) params.set("prompt", opts.prompt);
+        if (clientRequestId) params.set("requestId", clientRequestId);
+        const url = `/canvas?${params.toString()}`;
 
         const newTab = window.open(url, "_blank");
         if (newTab) {
           return;
-        } else {
-          // Popup was blocked — fallback to in-page navigation.
-          routerRef.current.push(url);
         }
+        // Popup was blocked — fallback to in-page navigation.
+        routerRef.current.push(url);
       } catch {
         clearInitialCreateProjectState();
         toastError(t("project.createFailed"));

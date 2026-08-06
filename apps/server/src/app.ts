@@ -1299,6 +1299,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       localUser,
       payload.sessionId,
       {
+        ...(payload.clientRequestId
+          ? { clientRequestId: payload.clientRequestId }
+          : {}),
         role: "assistant",
         content: "",
         contentBlocks: [],
@@ -1324,6 +1327,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         userId: localUser.id,
       }),
     );
+    if (response.reused) return response;
     const runState = createLocalAgentRunState(
       response.assistantMessageId ?? null,
       payload.canvasId ?? payload.conversationId,

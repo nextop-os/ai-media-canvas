@@ -537,6 +537,7 @@ describe("ChatSidebar", () => {
           accessToken="token_abc"
           canvasId="canvas-1"
           initialPrompt="generate with the selected OpenAI model"
+          initialRequestId="initial-request-1"
           open
           onToggle={() => {}}
           ws={mockWs}
@@ -547,6 +548,7 @@ describe("ChatSidebar", () => {
     await waitFor(() =>
       expect(mockWs.startRun).toHaveBeenCalledWith(
         expect.objectContaining({
+          clientRequestId: "initial-request-1",
           imageGenerationPreference: {
             mode: "manual",
             models: ["gpt-image-2"],
@@ -577,6 +579,7 @@ describe("ChatSidebar", () => {
         <ChatSidebar
           accessToken="token_abc"
           canvasId="canvas-1"
+          initialRequestId="initial-request-2"
           open
           onToggle={() => {}}
           ws={mockWs}
@@ -590,6 +593,7 @@ describe("ChatSidebar", () => {
           sessionId: "session-real",
           conversationId: "canvas-1",
           prompt: "",
+          clientRequestId: "initial-request-2",
           canvasId: "canvas-1",
           attachments,
         }),
