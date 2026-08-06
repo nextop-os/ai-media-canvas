@@ -138,9 +138,7 @@ describe("registerModelRoutes", () => {
       expect.objectContaining({ provider: "hermes" }),
     );
     expect(localAgentModelDiscovery.detect).toHaveBeenCalledTimes(1);
-    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: expect.any(String) }),
-    );
+    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(undefined);
   });
 
   it("coalesces normal and refresh model detection independently", async () => {
@@ -261,7 +259,6 @@ describe("registerModelRoutes", () => {
     });
     expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith({
       refresh: true,
-      cwd: "/tmp/aimc-app-data",
     });
   });
 
@@ -380,12 +377,10 @@ describe("registerModelRoutes", () => {
       provider: "tutti-agent",
       source: "local-agent",
     });
-    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith({
-      cwd: "/tmp/aimc-app-data",
-    });
+    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(undefined);
   });
 
-  it("uses one app-data-scoped discovery snapshot for models and exact targets", async () => {
+  it("uses one standalone discovery snapshot for models and exact targets", async () => {
     const localAgentModelDiscovery = {
       detect: vi.fn(async () => [
         {
@@ -418,9 +413,7 @@ describe("registerModelRoutes", () => {
 
     expect(response.statusCode, response.body).toBe(200);
     expect(localAgentModelDiscovery.detect).toHaveBeenCalledTimes(1);
-    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: "/tmp/aimc-app-data" }),
-    );
+    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(undefined);
     expect(response.json().models).toContainEqual(
       expect.objectContaining({ id: "codex:gpt-snapshot" }),
     );
@@ -539,12 +532,14 @@ describe("registerModelRoutes", () => {
     expect(responseB.json().models).toContainEqual(
       expect.objectContaining({ id: "tutti-agent:default" }),
     );
-    expect(localAgentModelDiscovery.detect).toHaveBeenNthCalledWith(1, {
-      cwd: "/tmp/aimc-app-data",
-    });
-    expect(localAgentModelDiscovery.detect).toHaveBeenNthCalledWith(2, {
-      cwd: "/tmp/aimc-app-data",
-    });
+    expect(localAgentModelDiscovery.detect).toHaveBeenNthCalledWith(
+      1,
+      undefined,
+    );
+    expect(localAgentModelDiscovery.detect).toHaveBeenNthCalledWith(
+      2,
+      undefined,
+    );
   });
 
   it("uses standalone context for supplied reusable discovery", async () => {
@@ -562,9 +557,7 @@ describe("registerModelRoutes", () => {
       localAgentModelDiscovery,
     });
 
-    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith({
-      cwd: "/tmp/aimc-app-data",
-    });
+    expect(localAgentModelDiscovery.detect).toHaveBeenCalledWith(undefined);
   });
 
   it("logs standalone model discovery failures", async () => {
