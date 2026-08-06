@@ -66,19 +66,17 @@ describe("runCreateRequestSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects exact targets with an incompatible explicit runtime", () => {
+  it("rejects the removed server-deepagent runtime", () => {
     const result = runCreateRequestSchema.safeParse({
       ...baseRunCreateRequest,
       runtimeKind: "server-deepagent",
-      agentTargetId: "team:designer",
     });
 
     expect(result.success).toBe(false);
     expect(result.error?.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          message: "agentTargetId requires runtimeKind=local-agent.",
-          path: ["agentTargetId"],
+          path: ["runtimeKind"],
         }),
       ]),
     );

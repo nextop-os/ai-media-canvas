@@ -16,7 +16,7 @@ import type {
   LocalAgentProviderInfo,
   LocalAgentTargetInfo,
 } from "@aimc/shared";
-import { Cloud, Settings2, Terminal } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useAppTranslation } from "../i18n";
 import { LocalCliProviderIcon } from "./local-cli-provider-icon";
@@ -39,16 +39,6 @@ const SPARKLE_ICON_PATH =
 
 const CHECK_PATH =
   "M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 1 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0";
-
-const PROVIDER_PRIORITY = [
-  "agnes",
-  "openai",
-  "anthropic",
-  "google",
-  "vertex",
-  "codex",
-  "local",
-];
 
 const TRIGGER_PROVIDER_ACCENT_CLASSES: Record<string, string> = {
   agnes: "border-[#111827] text-[#111827]",
@@ -187,8 +177,6 @@ export function AgentModelSelector({
   >(null);
   const [workspaceDefaultModelSource, setWorkspaceDefaultModelSource] =
     useState<AgentModelSourceTab | null>(null);
-  const [activeModelTab, setActiveModelTab] =
-    useState<AgentModelSourceTab>("local-agent");
 
   const loadModels = useCallback(() => {
     setModelLoadState("loading");
@@ -250,19 +238,6 @@ export function AgentModelSelector({
     if (!open) return;
     loadModels();
   }, [loadModels, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const selected = models.find((item) => item.id === model);
-    setActiveModelTab(
-      modelSource ??
-        (selected
-          ? getModelSourceTab(selected)
-          : !model && workspaceDefaultModelSource
-            ? workspaceDefaultModelSource
-            : getAgentModelSourceTab(model)),
-    );
-  }, [model, modelSource, models, open, workspaceDefaultModelSource]);
 
   const selectedModel = models.find((m) => m.id === model);
   const selectedModelSource =
@@ -334,31 +309,8 @@ export function AgentModelSelector({
     ? null
     : formatDefaultModelLabel(workspaceDefaultModel, models);
 
-  const visibleModels = models.filter(
-    (item) => getModelSourceTab(item) === activeModelTab,
-  );
-
-  const providers =
-    activeModelTab === "local-agent"
-      ? localAgentTargets.map((target) => target.agentTargetId)
-      : [...new Set(visibleModels.map((item) => item.provider))].sort(
-          (left, right) => {
-            const leftIndex = PROVIDER_PRIORITY.indexOf(left);
-            const rightIndex = PROVIDER_PRIORITY.indexOf(right);
-            const normalizedLeft =
-              leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
-            const normalizedRight =
-              rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
-
-            if (normalizedLeft !== normalizedRight) {
-              return normalizedLeft - normalizedRight;
-            }
-
-            return formatProviderLabel(left).localeCompare(
-              formatProviderLabel(right),
-            );
-          },
-        );
+  const visibleModels = models;
+  const providers = localAgentTargets.map((target) => target.agentTargetId);
 
   return (
     <>
@@ -438,44 +390,6 @@ export function AgentModelSelector({
               {t("agentModelSelector.settings")}
             </button>
           </div>
-          <div className="mb-2 grid grid-cols-3 rounded-full bg-muted p-0.5">
-            {[
-              {
-                id: "local-agent" as const,
-                label: t("agentModelSelector.localAgent"),
-                icon: Terminal,
-              },
-              {
-                id: "tutti-managed" as const,
-                label: t("agentModelSelector.tuttiManaged"),
-                icon: Cloud,
-              },
-              {
-                id: "api-provider" as const,
-                label: t("agentModelSelector.apiProvider"),
-                icon: Cloud,
-              },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const selected = activeModelTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setActiveModelTab(tab.id)}
-                  className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[12px] font-medium leading-tight transition-colors ${
-                    selected
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
           {/* Auto option */}
           <button
             type="button"
@@ -514,12 +428,9 @@ export function AgentModelSelector({
           </button>
           {/* Group by provider */}
           {providers.map((provider) => {
-            const localTarget =
-              activeModelTab === "local-agent"
-                ? localAgentTargets.find(
-                    (target) => target.agentTargetId === provider,
-                  )
-                : undefined;
+            const localTarget = localAgentTargets.find(
+              (target) => target.agentTargetId === provider,
+            );
             const runtimeProvider = localTarget?.providerId ?? provider;
             const providerModels = localTarget
               ? localTarget.models
@@ -615,26 +526,7 @@ export function AgentModelSelector({
           ) : null}
           {providers.length === 0 && modelLoadState === "ready" ? (
             <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
-              <p>
-                {activeModelTab === "local-agent"
-                  ? t("agentModelSelector.noLocalCliModels")
-                  : activeModelTab === "tutti-managed"
-                    ? t("agentModelSelector.noTuttiManagedModels")
-                    : t("agentModelSelector.noApiProviderModels")}
-              </p>
-              {activeModelTab === "tutti-managed" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    setSettingsInitialSourceTab("tutti-managed");
-                    setSettingsOpen(true);
-                  }}
-                  className="mt-3 inline-flex h-8 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  {t("agentModelSelector.connectTuttiManaged")}
-                </button>
-              ) : null}
+              <p>{t("agentModelSelector.noLocalCliModels")}</p>
             </div>
           ) : null}
         </PopoverContent>

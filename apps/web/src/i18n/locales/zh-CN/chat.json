@@ -5,22 +5,17 @@
     "resizePanel": "调整聊天面板宽度"
   },
   "agentModelSelector": {
-    "apiProvider": "API provider",
     "assistantMode": "助手模式",
-    "connectTuttiManaged": "去设置连接",
     "customModelId": "自定义模型 ID",
     "loadingModels": "正在加载模型…",
     "loadModelsError": "模型加载失败，请重试。",
     "localAgent": "本地 Agent",
     "localAssistant": "本地助手",
-    "noApiProviderModels": "未配置 API provider 模型。",
     "noLocalCliModels": "未检测到本地 CLI 模型。",
-    "noTuttiManagedModels": "未连接 Tutti Managed 模型。",
     "openSettings": "打开 Agent 设置",
     "providerUnavailable": "此 Provider 当前不可用。",
     "settings": "设置",
     "tooltip": "选择 Agent 模型",
-    "tuttiManaged": "Tutti Managed",
     "useCustomModel": "使用自定义模型",
     "usesConfiguredDefaultRoute": "使用你配置的默认路由",
     "usesDefaultModel": "使用默认模型：{{model}}"

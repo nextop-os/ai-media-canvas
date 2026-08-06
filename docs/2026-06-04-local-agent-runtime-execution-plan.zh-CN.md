@@ -4,6 +4,10 @@ Date: 2026-06-04
 Project: `ai-media-canvas`
 Status: Draft
 
+> 历史文档：2026-08-06 已移除 `server-deepagent`。本文中的双 runtime
+> rollout 计划已失效；当前实现和验证边界见
+> [server-deepagent 移除记录](./2026-08-06-server-deepagent-removal.zh-CN.md)。
+
 > 本文是执行计划文档，负责回答“先做什么、按什么顺序做、每阶段交付什么、怎么验收”。
 > 架构背景、方案权衡、长期设计与风险分析见：
 > [2026-06-03-agent-runtime-local-agent-design.zh-CN.md](/Users/wwcome/work/demo/ai-media-canvas/docs/2026-06-03-agent-runtime-local-agent-design.zh-CN.md)

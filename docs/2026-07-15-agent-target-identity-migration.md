@@ -21,9 +21,8 @@ logging, and media delegation policy.
   internal and return generic errors across the HTTP, CLI, and WebSocket
   boundaries.
 - Composer options and Tutti skill context are loaded for the exact target.
-  Server-deepagent mention handling first discovers the current catalog and
-  scopes guidance to its available default exact target; it has no provider
-  fallback.
+  Local-agent mention handling loads the skill context for the exact selected
+  target and has no provider fallback.
 - The settings action opens Tutti's generic Agent manager without a provider
   filter, so an unavailable target backed by a new runtime is still manageable.
 - CLI model help points callers to the models advertised for the selected exact

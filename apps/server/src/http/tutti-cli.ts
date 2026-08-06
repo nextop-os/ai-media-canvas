@@ -34,7 +34,6 @@ import {
   type SettingsService,
 } from "../features/settings/settings-service.js";
 import { SkillServiceError } from "../features/skills/skill-service.js";
-import type { TuttiManagedCredentialService } from "../features/tutti-managed/credential-service.js";
 import type { CanvasOperations } from "./canvas-operations.js";
 import type { ChatOperations } from "./chat-operations.js";
 import { listImageModels } from "./image-models.js";
@@ -133,7 +132,7 @@ const agentRunCliBodySchema = z.object({
   "canvas-id": z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   "agent-id": z.string().min(1).optional(),
-  "runtime-kind": z.enum(["server-deepagent", "local-agent"]).optional(),
+  "runtime-kind": z.literal("local-agent").optional(),
   "runtime-provider": z.string().min(1).optional(),
   "codex-imagegen-consent": z.enum(["allow-once"]).optional(),
 });
@@ -198,7 +197,6 @@ export async function registerTuttiCliRoutes(
     chatOperations: ChatOperations;
     env: ServerEnv;
     jobOperations: JobOperations;
-    tuttiManagedCredentials?: TuttiManagedCredentialService;
     projectOperations: ProjectOperations;
     settingsService?: SettingsService;
     skillOperations: SkillOperations;
@@ -589,9 +587,6 @@ export async function registerTuttiCliRoutes(
     listAgentModelCatalog({
       env: options.env,
       logger: app.log,
-      ...(options.tuttiManagedCredentials
-        ? { tuttiManagedCredentials: options.tuttiManagedCredentials }
-        : {}),
       ...(options.settingsService
         ? { settingsService: options.settingsService }
         : {}),

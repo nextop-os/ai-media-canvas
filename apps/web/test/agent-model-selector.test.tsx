@@ -20,11 +20,7 @@ const {
   agentModelState: {
     agentTargetId: undefined as string | undefined,
     model: null as string | null,
-    modelSource: undefined as
-      | "api-provider"
-      | "local-agent"
-      | "tutti-managed"
-      | undefined,
+    modelSource: undefined as "local-agent" | undefined,
   },
   fetchModelsMock: vi.fn(),
   fetchWorkspaceSettingsMock: vi.fn(),
@@ -117,38 +113,6 @@ describe("AgentModelSelector", () => {
     });
   });
 
-  it("refreshes models when the picker opens so it reflects the latest provider list", async () => {
-    fetchModelsMock
-      .mockResolvedValueOnce({
-        models: [
-          { id: "openai:gpt-4.1", name: "OpenAI GPT-4.1", provider: "openai" },
-        ],
-      })
-      .mockResolvedValueOnce({
-        models: [
-          {
-            id: "openai:deepseek-chat",
-            name: "deepseek-chat",
-            provider: "openai",
-          },
-          { id: "openai:qwen-plus", name: "qwen-plus", provider: "openai" },
-        ],
-      });
-
-    render(<AgentModelSelector compact />);
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(1));
-
-    await userEvent.click(screen.getByRole("button", { name: /Agent/i }));
-    await userEvent.click(
-      await screen.findByRole("button", { name: "API provider" }),
-    );
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("deepseek-chat")).toBeInTheDocument();
-    expect(screen.getByText("qwen-plus")).toBeInTheDocument();
-  });
-
   it("renders a tooltip label for the compact model trigger", async () => {
     fetchModelsMock.mockResolvedValue({
       models: [{ id: "codex:default", name: "Codex", provider: "codex" }],
@@ -194,143 +158,6 @@ describe("AgentModelSelector", () => {
 
     expect(await screen.findByText("Select agent model")).toHaveClass(
       "top-full",
-    );
-  });
-
-  it("shows the default-model hint, keeps Agnes above OpenAI, and exposes settings at the top", async () => {
-    fetchModelsMock.mockResolvedValue({
-      models: [
-        { id: "openai:gpt-5.4", name: "gpt-5.4", provider: "openai" },
-        { id: "openai:gpt-5.5", name: "gpt-5.5", provider: "openai" },
-        {
-          id: "agnes:agnes-2.0-flash",
-          name: "Agnes 2.0 Flash",
-          provider: "agnes",
-        },
-      ],
-    });
-
-    render(<AgentModelSelector compact />);
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole("button", { name: /Agent/i }));
-    await userEvent.click(
-      await screen.findByRole("button", { name: "API provider" }),
-    );
-
-    expect(
-      await screen.findByText("Uses default model: gpt-5.4"),
-    ).toBeInTheDocument();
-
-    const agnesHeading = screen.getByText("Agnes");
-    const openAIHeading = screen.getByText("OpenAI");
-    expect(
-      agnesHeading.compareDocumentPosition(openAIHeading) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "Open agent settings" }),
-    );
-    expect(screen.getByTestId("settings-dialog")).toHaveTextContent("agent");
-  });
-
-  it("shows the display name for a Tutti Managed workspace default model", async () => {
-    fetchWorkspaceSettingsMock.mockResolvedValue({
-      settings: {
-        defaultModel: "tutti:agnes:agnes-2.0-flash",
-        defaultModelSource: "tutti-managed",
-      },
-    });
-    fetchModelsMock.mockResolvedValue({
-      models: [
-        {
-          id: "tutti:agnes:agnes-2.0-flash",
-          name: "agnes-2.0-flash",
-          provider: "agnes",
-          source: "tutti-managed",
-        },
-      ],
-    });
-
-    render(<AgentModelSelector compact />);
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole("button", { name: /Agent/i }));
-
-    expect(
-      await screen.findByText("Uses default model: agnes-2.0-flash"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Uses your configured default route"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("switches the picker between local CLI and API provider models", async () => {
-    fetchModelsMock.mockResolvedValue({
-      models: [
-        {
-          id: "codex:gpt-5.4",
-          name: "Codex",
-          description: "Strong model for everyday coding.",
-          provider: "codex",
-        },
-        { id: "openai:gpt-5.4", name: "gpt-5.4", provider: "openai" },
-      ],
-    });
-
-    render(<AgentModelSelector compact />);
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole("button", { name: /Agent/i }));
-
-    expect(
-      await screen.findByRole("button", { name: "Local agent" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getByRole("button", { name: "API provider" }),
-    ).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
-    expect(
-      screen.getByText("Strong model for everyday coding."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("gpt-5.4")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "API provider" }));
-
-    expect(screen.getByRole("button", { name: "Local agent" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(
-      screen.getByRole("button", { name: "API provider" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByText("gpt-5.4")).toBeInTheDocument();
-    expect(screen.queryByText("Codex")).not.toBeInTheDocument();
-  });
-
-  it("opens agent settings on the Tutti Managed panel from the empty state", async () => {
-    fetchModelsMock.mockResolvedValue({
-      models: [{ id: "codex:gpt-5.5", name: "Codex", provider: "codex" }],
-    });
-
-    render(<AgentModelSelector compact />);
-
-    await waitFor(() => expect(fetchModelsMock).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole("button", { name: /Agent/i }));
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Tutti Managed" }),
-    );
-
-    expect(
-      await screen.findByText("No Tutti Managed models connected."),
-    ).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Connect in settings" }),
-    );
-
-    expect(screen.getByTestId("settings-dialog")).toHaveTextContent(
-      "agent:tutti-managed",
     );
   });
 

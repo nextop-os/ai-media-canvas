@@ -80,7 +80,7 @@ export function createScreenshotCanvasTool(deps: {
         // would be serialized as text by LangChain adapters (Google Gemini,
         // OpenAI) since tool responses only support string content — this
         // causes the conversation to instantly exceed the model's token limit.
-        // Pattern: same as generate_image — short URL in JSON, deepagent-events
+        // Pattern: same as generate_image — short URL in JSON, agent stream events
         // extracts screenshotUrl as a frontend artifact.
         let screenshotUrl: string | undefined;
         if (deps.persistImage) {

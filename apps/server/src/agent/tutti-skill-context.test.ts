@@ -13,10 +13,7 @@ vi.mock("@tutti-os/agent-acp-kit/tutti", () => ({
     ),
 }));
 
-import {
-  loadDefaultTuttiAgentSkillContextForRun,
-  loadTuttiAgentSkillContextForRun,
-} from "./tutti-skill-context.js";
+import { loadTuttiAgentSkillContextForRun } from "./tutti-skill-context.js";
 
 describe("loadTuttiAgentSkillContextForRun", () => {
   beforeEach(() => {
@@ -109,43 +106,5 @@ describe("loadTuttiAgentSkillContextForRun", () => {
     ).rejects.toBe(abortError);
 
     expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("loads server guidance for the available exact default Agent Target", async () => {
-    const runtime = {
-      detect: vi.fn(async () => [
-        {
-          agentTargetId: "team:designer",
-          provider: "codex",
-          displayName: "Designer",
-          supported: true,
-          authState: "ok" as const,
-          models: [],
-        },
-        {
-          agentTargetId: "team:reviewer",
-          provider: "codex",
-          displayName: "Reviewer",
-          supported: true,
-          authState: "ok" as const,
-          models: [],
-          isDefault: true as const,
-        },
-      ]),
-    };
-
-    const result = await loadDefaultTuttiAgentSkillContextForRun({
-      cwd: "/workspace/run",
-      runId: "run-default",
-      runtime,
-    });
-
-    expect(result.agentTargetId).toBe("team:reviewer");
-    expect(loadTuttiAgentSkillContextMock).toHaveBeenCalledWith({
-      agentTargetId: "team:reviewer",
-      agentSessionId: "run-default",
-      cwd: "/workspace/run",
-    });
-    expect(runtime.detect).toHaveBeenCalledWith({ cwd: "/workspace/run" });
   });
 });

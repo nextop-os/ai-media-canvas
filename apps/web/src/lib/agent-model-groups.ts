@@ -1,28 +1,9 @@
-import type {
-  LocalAgentProviderInfo,
-  ModelListResponse,
-} from "@aimc/shared";
+import type { LocalAgentProviderInfo, ModelListResponse } from "@aimc/shared";
 
-export type AgentModelSourceTab =
-  | "local-agent"
-  | "tutti-managed"
-  | "api-provider";
-
-const API_PROVIDER_IDS = new Set([
-  "agnes",
-  "openai",
-  "anthropic",
-  "google",
-  "vertex",
-]);
-const MANAGED_MODEL_PREFIXES = ["tutti"];
-
-export function isApiProvider(provider: string) {
-  return API_PROVIDER_IDS.has(provider);
-}
+export type AgentModelSourceTab = "local-agent";
 
 export function isLocalCliProvider(provider: string) {
-  return !isApiProvider(provider);
+  return true;
 }
 
 export function isSupportedLocalCliProvider(provider: string) {
@@ -30,19 +11,14 @@ export function isSupportedLocalCliProvider(provider: string) {
 }
 
 export function getAgentModelSourceTab(modelId: string | null | undefined) {
-  const provider = modelId?.split(":")[0] ?? "";
-  if (MANAGED_MODEL_PREFIXES.includes(provider)) {
-    return "tutti-managed";
-  }
-  return provider && isApiProvider(provider) ? "api-provider" : "local-agent";
+  return "local-agent" as const;
 }
 
 export function getModelSourceTab(model: {
   provider: string;
   source?: AgentModelSourceTab | undefined;
 }) {
-  if (model.source) return model.source;
-  return isApiProvider(model.provider) ? "api-provider" : "local-agent";
+  return model.source ?? "local-agent";
 }
 
 export function formatLocalCliProviderLabel(provider: string) {

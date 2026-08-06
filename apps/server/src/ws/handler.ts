@@ -20,9 +20,7 @@ import {
   type AgentRunOrchestrator,
   createAgentRunOrchestrator,
   getLocalAgentModelProvider,
-  isLocalAgentRuntimeRequested,
   resolveAgentRunModel,
-  shouldResolveLocalAgentTarget,
 } from "../agent/run-orchestrator.js";
 import type { AgentRunService } from "../agent/runtime.js";
 import type {
@@ -37,10 +35,6 @@ import {
   LOCAL_WORKSPACE_ID,
   type SettingsService,
 } from "../features/settings/settings-service.js";
-import {
-  type TuttiManagedCredentialService,
-  isManagedModelId,
-} from "../features/tutti-managed/credential-service.js";
 import { summarizeImageAttachments } from "../logging/attachments.js";
 import type { ConnectionManager } from "./connection-manager.js";
 import type { CanvasEventBuffer } from "./event-buffer.js";
@@ -81,7 +75,6 @@ type RegisterWsOptions = {
   chatService?: ChatService;
   connectionManager: ConnectionManager;
   eventBuffer?: CanvasEventBuffer;
-  tuttiManagedCredentials?: TuttiManagedCredentialService;
   settingsService?: SettingsService;
   threadService?: ThreadService;
   viewerService?: ViewerService;
@@ -419,67 +412,52 @@ async function handleRunCommand(
   ]);
   const effectiveEnv = runtimeSettings?.env;
   const model = effectiveEnv?.agentModel;
-  const requestsLocalAgent = shouldResolveLocalAgentTarget({
-    ...(payload.agentTargetId ? { agentTargetId: payload.agentTargetId } : {}),
-    ...((payload.model ?? model) ? { model: payload.model ?? model } : {}),
-    modelSource:
-      payload.modelSource ??
-      (!payload.model
-        ? runtimeSettings?.settings.defaultModelSource
-        : undefined),
-    ...(payload.runtimeKind ? { runtimeKind: payload.runtimeKind } : {}),
-    ...(payload.runtimeProvider
-      ? { runtimeProvider: payload.runtimeProvider }
-      : {}),
-  });
   let resolvedAgentTarget:
     | { agentTargetId: string; providerId: AgentRuntimeProvider }
     | undefined;
-  if (requestsLocalAgent) {
-    try {
-      const modelProvider = getLocalAgentModelProvider(payload.model ?? model);
-      resolvedAgentTarget = await resolveAgentTarget({
-        ...(payload.agentTargetId
-          ? { agentTargetId: payload.agentTargetId }
+  try {
+    const modelProvider = getLocalAgentModelProvider(payload.model ?? model);
+    resolvedAgentTarget = await resolveAgentTarget({
+      ...(payload.agentTargetId
+        ? { agentTargetId: payload.agentTargetId }
+        : {}),
+      ...(payload.runtimeProvider
+        ? { providerId: payload.runtimeProvider }
+        : !payload.agentTargetId && modelProvider
+          ? { providerId: modelProvider }
           : {}),
-        ...(payload.runtimeProvider
-          ? { providerId: payload.runtimeProvider }
-          : !payload.agentTargetId && modelProvider
-            ? { providerId: modelProvider }
-            : {}),
+    });
+  } catch (error) {
+    const expected = error instanceof AgentTargetResolutionError;
+    if (!expected) {
+      log.error("agent_target_resolve_failed", {
+        error: error instanceof Error ? error.message : String(error),
       });
-    } catch (error) {
-      const expected = error instanceof AgentTargetResolutionError;
-      if (!expected) {
-        log.error("agent_target_resolve_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-      connectionManager.sendTo(connectionId, {
-        type: "error",
-        code: expected ? "agent_target_unavailable" : "internal_error",
-        message: expected
-          ? error.message
-          : "Local agent target discovery failed.",
-      });
-      return;
     }
+    connectionManager.sendTo(connectionId, {
+      type: "error",
+      code: expected ? "agent_target_unavailable" : "internal_error",
+      message: expected
+        ? error.message
+        : "Local agent target discovery failed.",
+    });
+    return;
+  }
+  if (!resolvedAgentTarget) {
+    connectionManager.sendTo(connectionId, {
+      type: "error",
+      code: "agent_target_unavailable",
+      message: "A local agent target is required.",
+    });
+    return;
   }
   let resolvedModel: string | undefined;
   try {
     resolvedModel = resolveAgentRunModel({
       defaultModel: model,
       ...(payload.model ? { requestedModel: payload.model } : {}),
-      ...(requestsLocalAgent
-        ? { runtimeKind: "local-agent" as const }
-        : payload.runtimeKind
-          ? { runtimeKind: payload.runtimeKind }
-          : {}),
-      ...(resolvedAgentTarget
-        ? { runtimeProvider: resolvedAgentTarget.providerId }
-        : payload.runtimeProvider
-          ? { runtimeProvider: payload.runtimeProvider }
-          : {}),
+      runtimeKind: "local-agent",
+      runtimeProvider: resolvedAgentTarget.providerId,
     });
   } catch (error) {
     if (error instanceof AgentRunModelResolutionError) {
@@ -492,37 +470,10 @@ async function handleRunCommand(
     }
     throw error;
   }
-  const runtimeEnv =
-    effectiveEnv && resolvedModel && services.tuttiManagedCredentials
-      ? await services.tuttiManagedCredentials.resolveEnvForModel(
-          effectiveEnv,
-          resolvedModel,
-          payload.model
-            ? payload.modelSource
-            : runtimeSettings?.settings.defaultModelSource,
-        )
-      : effectiveEnv;
-  const runtimeModel =
-    isManagedModelId(resolvedModel) && runtimeEnv?.agentModel
-      ? runtimeEnv.agentModel
-      : resolvedModel;
+  const runtimeEnv = effectiveEnv;
+  const runtimeModel = resolvedModel;
   log.lap("resolve", { threadId: !!threadId, model: runtimeModel });
-  if (
-    runtimeEnv?.trustedLocalAgentMode === false &&
-    isLocalAgentRuntimeRequested({
-      model: runtimeModel,
-      ...(requestsLocalAgent
-        ? { runtimeKind: "local-agent" as const }
-        : payload.runtimeKind
-          ? { runtimeKind: payload.runtimeKind }
-          : {}),
-      ...(resolvedAgentTarget
-        ? { runtimeProvider: resolvedAgentTarget.providerId }
-        : payload.runtimeProvider
-          ? { runtimeProvider: payload.runtimeProvider }
-          : {}),
-    })
-  ) {
+  if (runtimeEnv?.trustedLocalAgentMode === false) {
     connectionManager.sendTo(connectionId, {
       type: "error",
       code: "local_agent_disabled",
@@ -561,16 +512,8 @@ async function handleRunCommand(
     ...(runtimeEnv ? { env: runtimeEnv } : {}),
     userId: authenticatedUser.id,
     ...(runtimeModel ? { model: runtimeModel } : {}),
-    ...(requestsLocalAgent
-      ? { runtimeKind: "local-agent" as const }
-      : payload.runtimeKind
-        ? { runtimeKind: payload.runtimeKind }
-        : {}),
-    ...(resolvedAgentTarget
-      ? { runtimeProvider: resolvedAgentTarget.providerId }
-      : payload.runtimeProvider
-        ? { runtimeProvider: payload.runtimeProvider }
-        : {}),
+    runtimeKind: "local-agent" as const,
+    runtimeProvider: resolvedAgentTarget.providerId,
     ...(runtimeSettings?.settings.codexImagegenDelegation
       ? {
           codexImagegenDelegation:

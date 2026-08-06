@@ -45,7 +45,7 @@ export const codexImagegenDelegationConsentSchema = z.object({
   codexImagegen: z.enum(["allow-once"]),
 });
 
-export const runtimeKindSchema = z.enum(["server-deepagent", "local-agent"]);
+export const runtimeKindSchema = z.literal("local-agent");
 
 export const agentRuntimeProviderSchema = z
   .string()
@@ -82,9 +82,7 @@ export const runCreateRequestSchema = z
     imageGenerationPreference: imageGenerationPreferenceSchema.optional(),
     videoGenerationPreference: videoGenerationPreferenceSchema.optional(),
     model: z.string().optional(),
-    modelSource: z
-      .enum(["local-agent", "tutti-managed", "api-provider"])
-      .optional(),
+    modelSource: z.literal("local-agent").optional(),
     resumeFromRunId: runIdSchema.optional(),
     resumeMode: agentRunResumeModeSchema.optional(),
     runtimeKind: runtimeKindSchema.optional(),
@@ -201,9 +199,7 @@ export const profileUpdateRequestSchema = z.object({
 
 export const workspaceSettingsSchema = z.object({
   defaultModel: z.string(),
-  defaultModelSource: z
-    .enum(["local-agent", "tutti-managed", "api-provider"])
-    .optional(),
+  defaultModelSource: z.literal("local-agent").optional(),
   providerModels: z.object({
     openai: z.array(z.string().min(1)),
     anthropic: z.array(z.string().min(1)),
@@ -230,11 +226,7 @@ export const workspaceSettingsSchema = z.object({
   codexImagegenDelegation: codexImagegenDelegationSchema.default("ask"),
 });
 
-export const agentModelSourceSchema = z.enum([
-  "local-agent",
-  "tutti-managed",
-  "api-provider",
-]);
+export const agentModelSourceSchema = z.literal("local-agent");
 
 export const modelInfoSchema = z.object({
   id: z.string().min(1),
@@ -263,47 +255,6 @@ export const localAgentTargetInfoSchema = z.object({
   isDefault: z.boolean(),
   reason: z.string().trim().min(1).optional(),
   models: z.array(modelInfoSchema),
-});
-
-export const tuttiManagedProviderIdSchema = z.enum([
-  "agnes",
-  "openai",
-  "anthropic",
-]);
-
-export const tuttiManagedModelSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  provider: tuttiManagedProviderIdSchema,
-});
-
-export const tuttiManagedConnectionSchema = z.object({
-  connected: z.boolean(),
-  grantRef: z.string().min(1).optional(),
-  expiresAt: timestampSchema.optional(),
-  providers: z.array(tuttiManagedProviderIdSchema),
-  models: z.array(tuttiManagedModelSchema),
-});
-
-export const tuttiManagedPublicConnectionSchema =
-  tuttiManagedConnectionSchema.omit({
-    grantRef: true,
-  });
-
-export const tuttiManagedConnectChallengeSchema = z.object({
-  expiresAt: timestampSchema,
-  nonce: z.string().trim().min(16),
-  state: z.string().trim().min(16),
-});
-
-export const tuttiManagedGrantRequestSchema = z.object({
-  contextToken: z.string().trim().min(1),
-  grantCode: z.string().trim().min(1),
-  nonce: z.string().trim().min(16),
-  state: z.string().trim().min(16),
-  expiresAt: timestampSchema.optional(),
-  providers: z.array(tuttiManagedProviderIdSchema).optional(),
-  models: z.array(tuttiManagedModelSchema).optional(),
 });
 
 export const toolStatusSchema = z.enum([
@@ -433,22 +384,6 @@ export type LocalAgentProviderInfo = z.infer<
   typeof localAgentProviderInfoSchema
 >;
 export type LocalAgentTargetInfo = z.infer<typeof localAgentTargetInfoSchema>;
-export type TuttiManagedProviderId = z.infer<
-  typeof tuttiManagedProviderIdSchema
->;
-export type TuttiManagedModel = z.infer<typeof tuttiManagedModelSchema>;
-export type TuttiManagedConnection = z.infer<
-  typeof tuttiManagedConnectionSchema
->;
-export type TuttiManagedPublicConnection = z.infer<
-  typeof tuttiManagedPublicConnectionSchema
->;
-export type TuttiManagedConnectChallenge = z.infer<
-  typeof tuttiManagedConnectChallengeSchema
->;
-export type TuttiManagedGrantRequest = z.infer<
-  typeof tuttiManagedGrantRequestSchema
->;
 export type RunCreateRequest = z.infer<typeof runCreateRequestSchema>;
 export type RunCreateResponse = z.infer<typeof runCreateResponseSchema>;
 export type ViewerProfile = z.infer<typeof viewerProfileSchema>;

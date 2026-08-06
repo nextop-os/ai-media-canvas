@@ -29,9 +29,7 @@ import {
   AgentRunModelResolutionError,
   createAgentRunOrchestrator,
   getLocalAgentModelProvider,
-  isLocalAgentRuntimeRequested,
   resolveAgentRunModel,
-  shouldResolveLocalAgentTarget,
 } from "./agent/run-orchestrator.js";
 import { createAgentRunService } from "./agent/runtime.js";
 import type { RequestAuthenticator } from "./auth/request.js";
@@ -63,10 +61,6 @@ import {
   SkillServiceError,
 } from "./features/skills/skill-service.js";
 import {
-  createTuttiManagedCredentialService,
-  isManagedModelId,
-} from "./features/tutti-managed/credential-service.js";
-import {
   type UploadService,
   UploadServiceError,
 } from "./features/uploads/upload-service.js";
@@ -89,7 +83,6 @@ import { registerSettingsRoutes } from "./http/settings.js";
 import { createSkillOperations } from "./http/skill-operations.js";
 import { registerSkillRoutes } from "./http/skills.js";
 import { registerTuttiCliRoutes } from "./http/tutti-cli.js";
-import { registerTuttiManagedModelConnectionRoutes } from "./http/tutti-managed-model-connection.js";
 import { registerUploadRoutes } from "./http/uploads.js";
 import { registerVideoModelRoutes } from "./http/video-models.js";
 import { type LocalStore, createLocalStore } from "./local/store.js";
@@ -969,10 +962,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const skillService = buildSkillService(store);
   const jobService = createJobService(store);
   const settingsService = createSettingsService(store, env);
-  const tuttiManagedCredentials = createTuttiManagedCredentialService({
-    env,
-    store,
-  });
   const projectOperations = createProjectOperations({
     localUser,
     projectService,
@@ -1247,61 +1236,52 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       settingsService.getWorkspaceSettings(localUser, LOCAL_WORKSPACE_ID),
     ]);
     const baseRuntimeEnv = createStandaloneAgentEnv(effectiveEnv);
-    const requestsLocalAgent = shouldResolveLocalAgentTarget({
-      ...(payload.agentTargetId
-        ? { agentTargetId: payload.agentTargetId }
-        : {}),
-      model: payload.model ?? baseRuntimeEnv.agentModel,
-      modelSource:
-        payload.modelSource ??
-        (!payload.model ? workspaceSettings.defaultModelSource : undefined),
-      ...(payload.runtimeKind ? { runtimeKind: payload.runtimeKind } : {}),
-      ...(payload.runtimeProvider
-        ? { runtimeProvider: payload.runtimeProvider }
-        : {}),
-    });
+    if (baseRuntimeEnv.trustedLocalAgentMode === false) {
+      throw new LocalAgentRunError(
+        "local_agent_disabled",
+        "Local agent runtime is disabled for this server.",
+        403,
+      );
+    }
     const modelProvider = getLocalAgentModelProvider(
       payload.model ?? baseRuntimeEnv.agentModel,
     );
     let resolvedAgentTarget:
       | Awaited<ReturnType<typeof resolveAgentTarget>>
       | undefined;
-    if (requestsLocalAgent) {
-      try {
-        resolvedAgentTarget = await resolveAgentTarget({
-          ...(payload.agentTargetId
-            ? { agentTargetId: payload.agentTargetId }
+    try {
+      resolvedAgentTarget = await resolveAgentTarget({
+        ...(payload.agentTargetId
+          ? { agentTargetId: payload.agentTargetId }
+          : {}),
+        ...(payload.runtimeProvider
+          ? { providerId: payload.runtimeProvider }
+          : !payload.agentTargetId && modelProvider
+            ? { providerId: modelProvider }
             : {}),
-          ...(payload.runtimeProvider
-            ? { providerId: payload.runtimeProvider }
-            : !payload.agentTargetId && modelProvider
-              ? { providerId: modelProvider }
-              : {}),
-        });
-      } catch (error) {
-        if (!(error instanceof AgentTargetResolutionError)) throw error;
-        throw new LocalAgentRunError(
-          "agent_target_unavailable",
-          error instanceof Error ? error.message : String(error),
-          400,
-        );
-      }
+      });
+    } catch (error) {
+      if (!(error instanceof AgentTargetResolutionError)) throw error;
+      throw new LocalAgentRunError(
+        "agent_target_unavailable",
+        error instanceof Error ? error.message : String(error),
+        400,
+      );
+    }
+    if (!resolvedAgentTarget) {
+      throw new LocalAgentRunError(
+        "agent_target_unavailable",
+        "A local agent target is required.",
+        400,
+      );
     }
     let resolvedModel: string | undefined;
     try {
       resolvedModel = resolveAgentRunModel({
         defaultModel: baseRuntimeEnv.agentModel,
         ...(payload.model ? { requestedModel: payload.model } : {}),
-        ...(requestsLocalAgent
-          ? { runtimeKind: "local-agent" as const }
-          : payload.runtimeKind
-            ? { runtimeKind: payload.runtimeKind }
-            : {}),
-        ...(resolvedAgentTarget
-          ? { runtimeProvider: resolvedAgentTarget.providerId }
-          : payload.runtimeProvider
-            ? { runtimeProvider: payload.runtimeProvider }
-            : {}),
+        runtimeKind: "local-agent",
+        runtimeProvider: resolvedAgentTarget.providerId,
       });
     } catch (error) {
       if (error instanceof AgentRunModelResolutionError) {
@@ -1313,39 +1293,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       }
       throw error;
     }
-    const runtimeEnv = await tuttiManagedCredentials.resolveEnvForModel(
-      baseRuntimeEnv,
-      resolvedModel ?? baseRuntimeEnv.agentModel,
-      payload.model
-        ? payload.modelSource
-        : workspaceSettings.defaultModelSource,
-    );
-    const runtimeModel =
-      isManagedModelId(resolvedModel) && runtimeEnv.agentModel
-        ? runtimeEnv.agentModel
-        : resolvedModel;
-    if (
-      runtimeEnv.trustedLocalAgentMode === false &&
-      isLocalAgentRuntimeRequested({
-        ...(runtimeModel ? { model: runtimeModel } : {}),
-        ...(requestsLocalAgent
-          ? { runtimeKind: "local-agent" as const }
-          : payload.runtimeKind
-            ? { runtimeKind: payload.runtimeKind }
-            : {}),
-        ...(resolvedAgentTarget
-          ? { runtimeProvider: resolvedAgentTarget.providerId }
-          : payload.runtimeProvider
-            ? { runtimeProvider: payload.runtimeProvider }
-            : {}),
-      })
-    ) {
-      throw new LocalAgentRunError(
-        "local_agent_disabled",
-        "Local agent runtime is disabled for this server.",
-        403,
-      );
-    }
+    const runtimeEnv = baseRuntimeEnv;
+    const runtimeModel = resolvedModel;
     const assistantMessage = await chatService.createMessage(
       localUser,
       payload.sessionId,
@@ -1364,16 +1313,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
         assistantMessageId: assistantMessage.id,
         env: runtimeEnv,
         ...(runtimeModel ? { model: runtimeModel } : {}),
-        ...(requestsLocalAgent
-          ? { runtimeKind: "local-agent" as const }
-          : payload.runtimeKind
-            ? { runtimeKind: payload.runtimeKind }
-            : {}),
-        ...(resolvedAgentTarget
-          ? { runtimeProvider: resolvedAgentTarget.providerId }
-          : payload.runtimeProvider
-            ? { runtimeProvider: payload.runtimeProvider }
-            : {}),
+        runtimeKind: "local-agent" as const,
+        runtimeProvider: resolvedAgentTarget.providerId,
         ...(workspaceSettings.codexImagegenDelegation
           ? {
               codexImagegenDelegation:
@@ -1492,12 +1433,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     uploadService,
   });
   void registerSettingsRoutes(app, { localUser, settingsService });
-  void registerTuttiManagedModelConnectionRoutes(app, {
-    tuttiManagedCredentials,
-  });
-  void registerModelRoutes(app, env, settingsService, {
-    tuttiManagedCredentials,
-  });
+  void registerModelRoutes(app, env, settingsService);
   void registerImageModelRoutes(app, env, settingsService);
   void registerVideoModelRoutes(app, env, settingsService);
   void registerJobRoutes(app, { localUser, jobOperations, jobService });
@@ -1521,7 +1457,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     env,
     jobOperations,
     localCanvasClient: createLocalUserClient(store),
-    tuttiManagedCredentials,
     projectOperations,
     settingsService,
     skillOperations,
@@ -1530,7 +1465,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     await wsApp.register(websocket);
     await registerWsRoute(wsApp, {
       agentRuns,
-      tuttiManagedCredentials,
       agentRunOrchestrator,
       agentRunPersistence: {
         appendEvent: store.appendAgentRunEvent,

@@ -74,7 +74,8 @@ describe("buildApp", () => {
       payload: {
         conversationId: project.primaryCanvas.id,
         prompt: "Continue",
-        runtimeKind: "server-deepagent",
+        runtimeKind: "local-agent",
+        runtimeProvider: "codex",
         sessionId: session.id,
       },
     });
