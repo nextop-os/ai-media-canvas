@@ -413,22 +413,9 @@ describe("local server API", () => {
     expect(result).toEqual(payload);
   });
 
-  it("uploadFile uses Tutti file upload bridge and creates an asset record", async () => {
-    const managedPath =
-      "/Users/test/Library/Application Support/Tutti/files/ref.png";
+  it("uploadFile uses the multipart endpoint when the Tutti bridge is available", async () => {
     const bridgeUpload = vi.fn(async (_file: Blob, options: unknown) => {
-      expect(options).toMatchObject({
-        purpose: "app-asset",
-        name: "ref.png",
-        mimeType: "image/png",
-      });
-      return {
-        path: managedPath,
-        name: "ref.png",
-        mimeType: "image/png",
-        sizeBytes: 4,
-        sha256: "sha256-ref",
-      };
+      throw new Error(`Unexpected bridge upload: ${JSON.stringify(options)}`);
     });
     (
       window as Window & {
@@ -440,18 +427,15 @@ describe("local server API", () => {
 
     const payload = {
       asset: {
-        id: "asset-managed-1",
+        id: "asset-local-1",
         bucket: "project-assets",
-        objectPath: managedPath,
+        objectPath: "upload/asset-local-1.png",
         mimeType: "image/png",
         byteSize: 4,
         projectId: "project-1",
         createdAt: "2026-06-24T00:00:00.000Z",
-        source: "managed-file",
-        displayName: "ref.png",
-        sha256: "sha256-ref",
       },
-      url: "http://localhost:3001/local-assets/asset-managed-1",
+      url: "http://localhost:3001/local-assets/asset-local-1",
     };
     mockFetch.mockResolvedValue({
       ok: true,
@@ -462,35 +446,17 @@ describe("local server API", () => {
     const file = new File(["fake"], "ref.png", { type: "image/png" });
     const result = await uploadFile(file, "project-1");
 
-    expect(bridgeUpload).toHaveBeenCalledWith(
-      file,
-      expect.objectContaining({
-        purpose: "app-asset",
-        name: "ref.png",
-        mimeType: "image/png",
-      }),
+    expect(bridgeUpload).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0]?.[0]).toBe(
+      "http://localhost:3001/api/uploads",
     );
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:3001/api/uploads/managed-file",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          file: {
-            path: managedPath,
-            name: "ref.png",
-            mimeType: "image/png",
-            sizeBytes: 4,
-            sha256: "sha256-ref",
-          },
-          projectId: "project-1",
-        }),
-      },
-    );
-    expect(result.asset).toEqual(payload.asset);
-    expect(result.url).toBe(
-      "http://localhost:3001/local-assets/asset-managed-1",
-    );
+    const init = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init?.body as FormData).get("file")).toBe(file);
+    expect((init?.body as FormData).get("projectId")).toBe("project-1");
+    expect(result).toEqual(payload);
   });
 
   it("generateImageDirect creates an image job and polls for the stored result", async () => {
