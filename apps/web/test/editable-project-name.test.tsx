@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,8 +60,8 @@ describe("EditableProjectName", () => {
       screen.getByRole("button", { name: "Original Name" }),
     );
     const input = screen.getByDisplayValue("Original Name");
-    await userEvent.clear(input);
-    await userEvent.type(input, "Renamed Project{enter}");
+    fireEvent.change(input, { target: { value: "Renamed Project" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() =>
       expect(updateProjectMock).toHaveBeenCalledWith("project-1", {

@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, extname, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
 import type {
@@ -52,13 +52,14 @@ import type {
 } from "@aimc/shared";
 import { getBundledSkills } from "./skill-catalog.js";
 import {
-  allocateRenamedTshProjectRoot,
   allocateTshProjectRoot,
   ensureTshProjectRoot,
   isTshWorkspaceAppHost,
   resolveTshParentPath,
   safeTshFileStem,
 } from "./tsh-workspace.js";
+
+const TSH_PROJECT_ID_MARKER = join(".aimc", "project-id");
 
 const LOCAL_USER_ID = "local-user";
 const LOCAL_WORKSPACE_ID = "local-workspace";
@@ -671,12 +672,81 @@ export function createLocalStore(options: {
 
   function allocateWorkspaceRootForProject(
     projectId: string,
-    name: string,
     parentPath?: string | null,
+    preferredStem?: string | null,
   ): string | null {
     const parent = resolveTshParentPath(parentPath);
     if (!parent) return null;
-    return ensureTshProjectRoot(allocateTshProjectRoot(parent, name, projectId));
+    const root = ensureTshProjectRoot(
+      allocateTshProjectRoot(
+        parent,
+        preferredStem ? { preferredStem } : {},
+      ),
+    );
+    writeTshProjectIdMarker(root, projectId);
+    return root;
+  }
+
+  function writeTshProjectIdMarker(workspaceRoot: string, projectId: string) {
+    const markerPath = join(workspaceRoot, TSH_PROJECT_ID_MARKER);
+    mkdirSync(dirname(markerPath), { recursive: true });
+    writeFileSync(markerPath, `${projectId}\n`, "utf8");
+  }
+
+  /** Rebind workspace_root after an external FS rename; never overwrite display name. */
+  function syncTshProjectBinding(projectId: string, currentName: string): string {
+    let bound = getProjectWorkspaceRoot(projectId);
+    if (!bound || !isTshWorkspaceAppHost()) return currentName;
+
+    if (!existsSync(bound)) {
+      const recovered = recoverTshProjectRoot(projectId, bound);
+      if (!recovered) return currentName;
+      bound = recovered;
+      db.prepare(
+        `UPDATE projects SET workspace_root = ?, updated_at = ? WHERE id = ?`,
+      ).run(bound, nowIso(), projectId);
+      return currentName;
+    }
+
+    const markerPath = join(bound, TSH_PROJECT_ID_MARKER);
+    if (!existsSync(markerPath)) {
+      try {
+        writeTshProjectIdMarker(bound, projectId);
+      } catch {
+        // best-effort
+      }
+    }
+    return currentName;
+  }
+
+  function recoverTshProjectRoot(
+    projectId: string,
+    missingPath: string,
+  ): string | null {
+    const parent = dirname(missingPath);
+    if (!existsSync(parent)) return null;
+    let entries: string[];
+    try {
+      entries = readdirSync(parent, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+    } catch {
+      return null;
+    }
+    const matches: string[] = [];
+    for (const name of entries) {
+      const candidate = join(parent, name);
+      const markerPath = join(candidate, TSH_PROJECT_ID_MARKER);
+      if (!existsSync(markerPath)) continue;
+      try {
+        if (readFileSync(markerPath, "utf8").trim() === projectId) {
+          matches.push(candidate);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return matches.length === 1 ? matches[0]! : null;
   }
 
   function ensureAgentRunSchema() {
@@ -1521,19 +1591,21 @@ export function createLocalStore(options: {
       created_at: string;
       updated_at: string;
     }>;
-    return rows.map(mapProjectRow);
+    return rows.map((row) =>
+      mapProjectRow({ ...row, name: syncTshProjectBinding(row.id, row.name) }),
+    );
   }
 
   function createProject(input: ProjectCreateRequest) {
     const timestamp = nowIso();
     const projectId = randomUUID();
     const canvasId = randomUUID();
-    const name = input.name.trim();
     const workspaceRoot = allocateWorkspaceRootForProject(
       projectId,
-      name,
       input.parentPath,
     );
+    // Display name is independent of the on-disk directory name.
+    const name = input.name.trim() || "Untitled";
     const defaultBrandKit = db
       .prepare(
         `
@@ -1669,10 +1741,20 @@ export function createLocalStore(options: {
     if (!row) return null;
     const existing = row.workspace_root?.trim();
     if (existing) {
-      mkdirSync(existing, { recursive: true });
-      return existing;
+      if (existsSync(existing)) {
+        mkdirSync(existing, { recursive: true });
+        syncTshProjectBinding(projectId, row.name);
+        return existing;
+      }
+      const recovered = recoverTshProjectRoot(projectId, existing);
+      if (recovered) {
+        db.prepare(
+          `UPDATE projects SET workspace_root = ?, updated_at = ? WHERE id = ?`,
+        ).run(recovered, nowIso(), projectId);
+        return recovered;
+      }
     }
-    const workspaceRoot = allocateWorkspaceRootForProject(row.id, row.name);
+    const workspaceRoot = allocateWorkspaceRootForProject(row.id);
     if (!workspaceRoot) return null;
     db.prepare(
       `UPDATE projects SET workspace_root = ?, updated_at = ? WHERE id = ?`,
@@ -1710,9 +1792,10 @@ export function createLocalStore(options: {
         }
       | undefined;
     if (!row) return null;
+    const name = syncTshProjectBinding(row.id, row.name);
     return {
       id: row.id,
-      name: row.name,
+      name,
       slug: row.slug,
       description: row.description,
       workspace_id: LOCAL_WORKSPACE_ID,
@@ -1732,11 +1815,10 @@ export function createLocalStore(options: {
     if (!existing) return { ok: false, reason: "project_not_found" };
     const patch: string[] = [];
     const values: SQLInputValue[] = [];
-    const nextName =
-      input.name !== undefined ? input.name.trim() : existing.name;
+    const workspaceRoot = getProjectWorkspaceRoot(projectId);
     if (input.name !== undefined) {
       patch.push("name = ?");
-      values.push(nextName);
+      values.push(input.name.trim() || existing.name);
     }
     if (input.brandKitId !== undefined) {
       if (input.brandKitId !== null && !getBrandKit(input.brandKitId)) {
@@ -1746,31 +1828,8 @@ export function createLocalStore(options: {
       values.push(input.brandKitId);
     }
 
-    let nextWorkspaceRoot = getProjectWorkspaceRoot(projectId);
-    if (
-      input.name !== undefined &&
-      nextName &&
-      nextName !== existing.name &&
-      nextWorkspaceRoot &&
-      isTshWorkspaceAppHost()
-    ) {
-      const renamed = allocateRenamedTshProjectRoot(
-        nextWorkspaceRoot,
-        nextName,
-      );
-      if (renamed !== nextWorkspaceRoot) {
-        if (existsSync(renamed)) {
-          throw new Error(`A directory already exists at ${renamed}`);
-        }
-        if (existsSync(nextWorkspaceRoot)) {
-          renameSync(nextWorkspaceRoot, renamed);
-        } else {
-          mkdirSync(renamed, { recursive: true });
-        }
-        nextWorkspaceRoot = renamed;
-        patch.push("workspace_root = ?");
-        values.push(renamed);
-      }
+    if (patch.length === 0) {
+      return { ok: true, workspaceRoot };
     }
 
     patch.push("updated_at = ?");
@@ -1779,7 +1838,7 @@ export function createLocalStore(options: {
     db.prepare(`UPDATE projects SET ${patch.join(", ")} WHERE id = ?`).run(
       ...values,
     );
-    return { ok: true, workspaceRoot: nextWorkspaceRoot };
+    return { ok: true, workspaceRoot };
   }
 
   function archiveProject(projectId: string) {
