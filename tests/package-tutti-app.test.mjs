@@ -256,6 +256,11 @@ test("createCliManifest returns the Tutti CLI manifest contract", () => {
             type: "string",
             description: "Optional project description.",
           },
+          "parent-path": {
+            type: "string",
+            description:
+              "Optional TSH parent directory under /workspace for the project folder.",
+          },
         },
         required: ["name"],
       },
@@ -340,7 +345,10 @@ test("renderCommandsGuide documents CLI commands", () => {
 
   assert.match(guide, /AI Canvas CLI Commands/);
   assert.match(guide, /`aimc open --project-id`/);
-  assert.match(guide, /`aimc projects create --name <required> --description`/);
+  assert.match(
+    guide,
+    /`aimc projects create --name <required> --description --parent-path`/,
+  );
   assert.match(guide, /`aimc assets list --project-id <required>/);
   assert.match(guide, /\/tutti\/cli\/agent\/run/);
 });
@@ -364,10 +372,10 @@ test("renderBootstrap maps Tutti runtime env into AI Canvas env", () => {
     bootstrap,
     /export AIMC_DATA_ROOT="\$\{TUTTI_APP_DATA_DIR:-\$package_dir\/\.data\}"/,
   );
-  assert.match(
-    bootstrap,
-    /export AIMC_DATABASE_ROOT="\$\{TUTTI_APP_DATABASE_DIR:-\$AIMC_DATA_ROOT\}"/,
-  );
+  assert.match(bootstrap, /if \[ -n "\$\{TUTTI_APP_DATABASE_DIR:-\}" \]; then/);
+  assert.match(bootstrap, /export AIMC_DATABASE_ROOT="\$TUTTI_APP_DATABASE_DIR"/);
+  assert.match(bootstrap, /export AIMC_DATA_ROOT="\$TUTTI_APP_DATABASE_DIR"/);
+  assert.match(bootstrap, /export AIMC_DATABASE_ROOT="\$AIMC_DATA_ROOT"/);
   assert.match(bootstrap, /legacy_db="\$AIMC_DATA_ROOT\/ai-media-canvas\.db"/);
   assert.match(bootstrap, /export AIMC_SKILLS_ROOT="\$package_dir\/skills"/);
   assert.match(
@@ -383,7 +391,7 @@ test("renderBootstrap maps Tutti runtime env into AI Canvas env", () => {
   assert.match(bootstrap, /node_bin="\$\{TUTTI_APP_NODE:-node\}"/);
   assert.match(
     bootstrap,
-    /runtime_dir="\$\{TUTTI_APP_RUNTIME_DIR:-\$AIMC_DATA_ROOT\/\.runtime\}"/,
+    /runtime_dir="\$\{TUTTI_APP_RUNTIME_DIR:-\$AIMC_DATABASE_ROOT\/\.runtime\}"/,
   );
   assert.doesNotMatch(bootstrap, new RegExp("NEXT" + "OP"));
   assert.match(
