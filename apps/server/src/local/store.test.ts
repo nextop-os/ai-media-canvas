@@ -443,6 +443,48 @@ describe("createLocalStore", () => {
     expect(reclaimed?.attempt_count).toBe(1);
   });
 
+  it("keeps retryable background job failures non-terminal", () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-"));
+    tempDirs.push(dataRoot);
+
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+    });
+    const project = store.createProject({ name: "Retryable Jobs" });
+    const job = store.createBackgroundJob({
+      jobType: "image_generation",
+      queueName: "image_generation_jobs",
+      projectId: project.id,
+      payload: { prompt: "A retrying image", model: "agnes-image" },
+    });
+
+    expect(
+      store.claimBackgroundJobs({ workerId: "worker-1", limit: 1 })[0]
+        ?.attempt_count,
+    ).toBe(1);
+    expect(
+      store.markBackgroundJobFailed({
+        jobId: job.id,
+        errorCode: "temporary_error",
+        errorMessage: "Retry later",
+        retryDelayMs: 0,
+      })?.status,
+    ).toBe("queued");
+    expect(
+      store.claimBackgroundJobs({ workerId: "worker-2", limit: 1 })[0]
+        ?.attempt_count,
+    ).toBe(2);
+    expect(
+      store.markBackgroundJobFailed({
+        jobId: job.id,
+        errorCode: "final_error",
+        errorMessage: "Do not retry",
+        retryable: false,
+      })?.status,
+    ).toBe("dead_letter");
+  });
+
   it("updates assistant anchors and persists agent run events", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-"));
     tempDirs.push(dataRoot);

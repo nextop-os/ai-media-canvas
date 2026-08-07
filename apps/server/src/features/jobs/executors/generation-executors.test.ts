@@ -405,9 +405,10 @@ describe("generation executors", () => {
         return {
           url: `data:video/mp4;base64,${videoBytes.toString("base64")}`,
           mimeType: "video/mp4",
-          width: 854,
-          height: 480,
+          width: 1280,
+          height: 720,
           durationSeconds: 4,
+          resolution: "720p",
         };
       },
     });
@@ -422,7 +423,7 @@ describe("generation executors", () => {
         model: "test/video-model",
         duration: 4,
         aspect_ratio: "16:9",
-        resolution: "480p",
+        resolution: "1080p",
       },
     });
     const pending = await insertVideoGenerationNode(
@@ -434,7 +435,7 @@ describe("generation executors", () => {
         jobId: job.id,
         model: "test/video-model",
         prompt: "A paper boat drifting",
-        resolution: "480p",
+        resolution: "1080p",
       },
     );
 
@@ -451,8 +452,10 @@ describe("generation executors", () => {
         jobId: job.id,
         assetId: result.asset_id,
         videoUrl: `/local-assets/${result.asset_id}`,
+        resolution: "720p",
       },
     });
+    expect(result.resolution).toBe("720p");
   });
 
   it("uses the video generation title as the exposed reference name", async () => {

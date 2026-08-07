@@ -159,7 +159,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
       .max(16)
       .optional()
       .describe(
-        "Video duration in seconds. Valid range depends on model (see model descriptions). Google Veo supports 4/6/8, Replicate models support 3-16.",
+        "Video duration in seconds. Valid range depends on model (see model descriptions). For Agnes at 24fps, 1080p text-to-video supports up to 10s and image-conditioned modes up to 6s; longer Agnes requests are generated at 720p.",
       ),
     resolution:
       resolutionValues.length >= 1
@@ -167,7 +167,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
             .enum(resolutionValues as [string, ...string[]])
             .optional()
             .describe(
-              "Output resolution. Must be one of the values listed for the selected model in the model field description.",
+              "Output resolution. Must be one of the values listed for the selected model. Agnes 1080p is limited to 241 frames for text-to-video and 169 frames for image-conditioned modes; longer requests are generated at 720p.",
             )
         : z
             .enum(["480p", "720p", "1080p", "4k"])

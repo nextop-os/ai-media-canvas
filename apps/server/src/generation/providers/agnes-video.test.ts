@@ -262,6 +262,28 @@ describe("AgnesVideoProvider", () => {
     });
   });
 
+  it("caps long text-to-video requests to 720p at the verified Agnes frame limit", async () => {
+    const provider = new AgnesVideoProvider("agnes-test-key");
+
+    const result = await provider.generate({
+      prompt: "A long orbiting camera move",
+      model: "agnes-video/agnes-video-v2.0",
+      duration: 16,
+      aspectRatio: "16:9",
+      resolution: "1080p",
+    });
+
+    expect(videoGenerateMock).toHaveBeenCalledWith({
+      mode: "text2video",
+      prompt: "A long orbiting camera move",
+      width: 1280,
+      height: 720,
+      numFrames: 385,
+      frameRate: 24,
+    });
+    expect(result.resolution).toBe("720p");
+  });
+
   it("keeps short image-conditioned Agnes videos at 1080p", async () => {
     const provider = new AgnesVideoProvider("agnes-test-key");
 
@@ -520,6 +542,36 @@ describe("AgnesVideoProvider", () => {
     ).rejects.toMatchObject({
       code: "api_error",
       message: "Remote generation failed.",
+      provider: "agnes-video",
+    });
+  });
+
+  it("includes the concrete Agnes response message in create failures", async () => {
+    const provider = new AgnesVideoProvider("agnes-test-key");
+    const error = Object.assign(
+      new Error("Agnes video request failed with HTTP 400."),
+      {
+        details: {
+          code: "invalid_request",
+          message:
+            "num_frames exceeds max frames for the resolved resolution and ratio",
+          data: { max_num_frames: 241 },
+        },
+      },
+    );
+    videoGenerateMock.mockRejectedValueOnce(error);
+
+    await expect(
+      provider.generate({
+        prompt: "A long 1080p video",
+        model: "agnes-video/agnes-video-v2.0",
+        aspectRatio: "16:9",
+        resolution: "1080p",
+      }),
+    ).rejects.toMatchObject({
+      code: "api_error",
+      message:
+        "Agnes video request failed with HTTP 400. num_frames exceeds max frames for the resolved resolution and ratio",
       provider: "agnes-video",
     });
   });

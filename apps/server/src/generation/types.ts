@@ -77,6 +77,8 @@ export interface GeneratedVideo {
   width: number;
   height: number;
   durationSeconds: number;
+  /** Effective output resolution after any provider-side normalization. */
+  resolution?: "480p" | "720p" | "1080p" | "4k" | "2160p";
 }
 
 export interface VideoProvider {

@@ -9,6 +9,7 @@ export function summarizeModelSchemaForTool(model: ModelLike): string {
   if (!schema) return "schema limits unavailable";
 
   const parts: string[] = [];
+  if (schema.description) parts.push(schema.description);
   addSchemaValue(parts, "aspectRatio", schema.properties.aspectRatio);
   addSchemaValue(parts, "duration", schema.properties.duration);
   addSchemaValue(parts, "resolution", schema.properties.resolution);

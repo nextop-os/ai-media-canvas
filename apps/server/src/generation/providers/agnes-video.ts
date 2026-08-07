@@ -25,6 +25,7 @@ const AGNES_VIDEO_ASPECT_RATIOS = ["16:9", "9:16"] as const;
 const AGNES_VIDEO_ALLOWED_DURATIONS = [4, 5, 6, 8, 10, 15, 16] as const;
 const MAX_AGNES_DURATION_SECONDS = 16;
 const MAX_AGNES_IMAGE_DURATION_SECONDS = 16;
+const MAX_AGNES_1080P_TEXT_NUM_FRAMES = 241;
 const MAX_AGNES_1080P_IMAGE_NUM_FRAMES = 169;
 const MAX_AGNES_NUM_FRAMES = 441;
 type AgnesVideoModelId = (typeof AGNES_VIDEO_MODEL_IDS)[number];
@@ -51,7 +52,7 @@ const AGNES_VIDEO_MODELS: readonly VideoModelInfo[] = [
     id: "agnes-video/agnes-video-v2.0",
     displayName: "Agnes Video v2.0",
     description:
-      "Agnes text, image, multi-image, and keyframe-guided video generation.",
+      "Agnes text, image, multi-image, and keyframe-guided video generation. At 1080p, text-to-video supports at most 241 frames and image-conditioned modes at most 169 frames; longer requests are generated at 720p.",
     iconUrl: ICON_AGNES,
     capabilities: {
       textToVideo: true,
@@ -97,9 +98,10 @@ function resolveAgnesResolution(
     return resolution;
   }
   if (resolution === "1080p") {
-    return hasInputImages && numFrames > MAX_AGNES_1080P_IMAGE_NUM_FRAMES
-      ? "720p"
-      : resolution;
+    const maxFrames = hasInputImages
+      ? MAX_AGNES_1080P_IMAGE_NUM_FRAMES
+      : MAX_AGNES_1080P_TEXT_NUM_FRAMES;
+    return numFrames > maxFrames ? "720p" : resolution;
   }
   throw new GenerationError(
     "agnes-video",
@@ -285,6 +287,7 @@ function resolveAgnesVideoRequest(params: VideoGenerateParams) {
     inputImages,
     mode,
     numFrames,
+    resolution,
     width,
   };
 }
@@ -386,7 +389,7 @@ export class AgnesVideoProvider implements VideoProvider {
       throw new GenerationError(
         this.name,
         "api_error",
-        error instanceof Error ? error.message : "Unknown Agnes video error",
+        getAgnesRequestErrorMessage(error),
       );
     }
   }
@@ -411,7 +414,7 @@ export class AgnesVideoProvider implements VideoProvider {
       throw new GenerationError(
         this.name,
         "api_error",
-        error instanceof Error ? error.message : "Unknown Agnes video error",
+        getAgnesRequestErrorMessage(error),
       );
     }
   }
@@ -498,6 +501,7 @@ export class AgnesVideoProvider implements VideoProvider {
           mimeType: "video/mp4",
           width: request.width,
           height: request.height,
+          ...(request.resolution ? { resolution: request.resolution } : {}),
           durationSeconds:
             task.seconds ??
             request.durationSeconds ??
@@ -533,6 +537,31 @@ function getAgnesTaskErrorMessage(error: unknown, fallback: string) {
     return (error as { message: string }).message;
   }
   return `Agnes video task ${fallback}.`;
+}
+
+function getAgnesRequestErrorMessage(error: unknown) {
+  const fallback =
+    error instanceof Error ? error.message : "Unknown Agnes video error";
+  if (!error || typeof error !== "object" || !("details" in error)) {
+    return fallback;
+  }
+  const detailMessage = getNestedAgnesMessage(
+    (error as { details?: unknown }).details,
+  );
+  if (!detailMessage || fallback.includes(detailMessage)) return fallback;
+  return `${fallback} ${detailMessage}`;
+}
+
+function getNestedAgnesMessage(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) {
+    return value.replace(/\s+/g, " ").trim().slice(0, 500);
+  }
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (typeof record.message === "string" && record.message.trim()) {
+    return record.message.replace(/\s+/g, " ").trim().slice(0, 500);
+  }
+  return getNestedAgnesMessage(record.error);
 }
 
 function delay(ms: number) {
