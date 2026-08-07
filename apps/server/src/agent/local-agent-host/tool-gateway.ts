@@ -34,13 +34,13 @@ import { createPersistSandboxFileTool } from "../tools/persist-sandbox-file.js";
 import { createProjectSearchTool } from "../tools/project-search.js";
 import { createScreenshotCanvasTool } from "../tools/screenshot-canvas.js";
 import {
-  type SubmitVideoJobFn,
-  createVideoGenerateTool,
-} from "../tools/video-generate.js";
-import {
   type SetProjectTitleFn,
   createSetProjectTitleTool,
 } from "../tools/set-project-title.js";
+import {
+  type SubmitVideoJobFn,
+  createVideoGenerateTool,
+} from "../tools/video-generate.js";
 import {
   type ApplyWorkspaceSettingsPatch,
   type ReadWorkspaceSettings,
@@ -100,6 +100,7 @@ type LocalToolGatewaySession = {
 
 type CreateLocalToolGatewayOptions = {
   createUserClient: (accessToken: string) => unknown;
+  readLocalAssetDataUrl?: (assetId: string) => Promise<string | undefined>;
   connectionPublisher?: {
     pushToCanvas: (canvasId: string, event: StreamEvent) => void;
   };
@@ -557,6 +558,12 @@ export function createLocalToolGatewayService(
           return bucket.getPublicUrl(objectPath).data.publicUrl;
         }
       : undefined;
+    const resolveVideoInputImage = options.readLocalAssetDataUrl
+      ? async (input: string) => {
+          const assetId = extractLocalAssetId(input);
+          return assetId ? options.readLocalAssetDataUrl?.(assetId) : input;
+        }
+      : undefined;
     const tools: StructuredToolLike[] = [
       createInspectCanvasTool({
         createUserClient,
@@ -576,6 +583,9 @@ export function createLocalToolGatewayService(
       }) as unknown as StructuredToolLike,
       createVideoGenerateTool({
         layoutInspectionState,
+        ...(resolveVideoInputImage
+          ? { resolveInputImage: resolveVideoInputImage }
+          : {}),
         ...(session.submitVideoJob
           ? { submitVideoJob: session.submitVideoJob }
           : {}),

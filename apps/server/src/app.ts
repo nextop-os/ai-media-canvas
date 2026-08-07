@@ -1017,6 +1017,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const localToolGateway = createLocalToolGatewayService({
     connectionPublisher: connectionManager,
     createUserClient,
+    readLocalAssetDataUrl: async (assetId) => {
+      const asset = store.getAssetResponse(assetId);
+      if (!asset || !asset.mimeType.startsWith("image/")) return undefined;
+      const bytes = await readFile(asset.filePath);
+      return `data:${asset.mimeType};base64,${bytes.toString("base64")}`;
+    },
     patchWorkspaceSettings: async ({ patch }) => {
       const current = await settingsService.getWorkspaceSettings(
         localUser,

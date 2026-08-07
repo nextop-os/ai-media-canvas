@@ -106,6 +106,7 @@ export async function executeVideoGenerationJob(
     job.remote_task_id && videoProvider.resume
       ? await videoProvider.resume(job.remote_task_id, videoParams)
       : await videoProvider.generate(videoParams);
+  const effectiveResolution = generated.resolution ?? payload.resolution;
 
   const { buffer, mimeType } = await loadGeneratedAsset(
     generated.url,
@@ -135,7 +136,7 @@ export async function executeVideoGenerationJob(
         model,
         prompt: payload.prompt,
         ...(payload.aspect_ratio ? { aspectRatio: payload.aspect_ratio } : {}),
-        ...(payload.resolution ? { resolution: payload.resolution } : {}),
+        ...(effectiveResolution ? { resolution: effectiveResolution } : {}),
         signedUrl: stored.url,
         ...(payload.title ? { title: payload.title } : {}),
         width: generated.width,
@@ -156,7 +157,7 @@ export async function executeVideoGenerationJob(
     prompt: payload.prompt,
     model,
     ...(payload.aspect_ratio ? { aspect_ratio: payload.aspect_ratio } : {}),
-    ...(payload.resolution ? { resolution: payload.resolution } : {}),
+    ...(effectiveResolution ? { resolution: effectiveResolution } : {}),
   };
 }
 

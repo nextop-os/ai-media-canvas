@@ -1773,7 +1773,10 @@ async function waitForImageJobResult(
       };
     }
 
-    if (job.status === "dead_letter" || job.status === "failed") {
+    if (
+      job.status === "dead_letter" ||
+      (job.status === "failed" && job.attempt_count >= job.max_attempts)
+    ) {
       throw new Error(job.error_message ?? "Image generation failed.");
     }
 

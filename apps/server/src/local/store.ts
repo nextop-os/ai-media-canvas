@@ -3730,7 +3730,7 @@ export function createLocalStore(options: {
     const updatedAt = nowIso();
     const canRetry =
       input.retryable !== false && row.attempt_count < row.max_attempts;
-    const nextStatus: BackgroundJobStatus = canRetry ? "failed" : "dead_letter";
+    const nextStatus: BackgroundJobStatus = canRetry ? "queued" : "dead_letter";
     const nextRunAt = canRetry
       ? new Date(Date.now() + (input.retryDelayMs ?? 2_000)).toISOString()
       : null;

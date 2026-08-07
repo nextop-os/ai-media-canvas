@@ -10,9 +10,9 @@ import {
 import { generateVideo } from "../../generation/video-generation.js";
 import type { CanvasLayoutInspectionState } from "./inspect-canvas.js";
 import {
+  type MediaCapabilityRequired,
   buildMediaCapabilityRequired,
   isUnavailableMediaGenerationError,
-  type MediaCapabilityRequired,
 } from "./media-capability.js";
 import {
   collectStringEnumValues,
@@ -111,10 +111,18 @@ export type SubmitVideoJobFn = (input: {
   status?: "generating";
 }>;
 
+export type ResolveVideoInputImageFn = (
+  input: string,
+) => Promise<string | undefined>;
+
 // ── Dynamic schema builder ─────────────────────────────────────────────────
 
 function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
   const modelIds = models.map((m) => m.id);
+  const maxInputImages = Math.max(
+    1,
+    ...models.map((model) => model.limits.maxInputImages),
+  );
   const defaultModel = modelIds.includes(DEFAULT_MODEL)
     ? DEFAULT_MODEL
     : (modelIds[0] ?? DEFAULT_MODEL);
@@ -125,7 +133,10 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
   const aspectRatioValues = collectStringEnumValues(models, "aspectRatio");
   const resolutionValues = collectStringEnumValues(models, "resolution");
 
-  const modelField = z.string().default(defaultModel).describe(modelDescription);
+  const modelField = z
+    .string()
+    .default(defaultModel)
+    .describe(modelDescription);
 
   return z.object({
     title: z
@@ -148,7 +159,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
       .max(16)
       .optional()
       .describe(
-        "Video duration in seconds. Valid range depends on model (see model descriptions). Google Veo supports 4/6/8, Replicate models support 3-16.",
+        "Video duration in seconds. Valid range depends on model (see model descriptions). For Agnes at 24fps, 1080p text-to-video supports up to 10s and image-conditioned modes up to 6s; longer Agnes requests are generated at 720p.",
       ),
     resolution:
       resolutionValues.length >= 1
@@ -156,7 +167,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
             .enum(resolutionValues as [string, ...string[]])
             .optional()
             .describe(
-              "Output resolution. Must be one of the values listed for the selected model in the model field description.",
+              "Output resolution. Must be one of the values listed for the selected model. Agnes 1080p is limited to 241 frames for text-to-video and 169 frames for image-conditioned modes; longer requests are generated at 720p.",
             )
         : z
             .enum(["480p", "720p", "1080p", "4k"])
@@ -180,10 +191,10 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
             ),
     inputImages: z
       .array(z.string())
-      .max(7)
+      .max(maxInputImages)
       .optional()
       .describe(
-        "Reference image URLs for image-to-video. First image used as first frame. Only for models with I2V capability.",
+        "Image inputs for image-to-video. For exactly one image, omit videoMode. A reference image does not imply videoMode=reference. AIMC canvas sessions also resolve /local-assets/:assetId inputs.",
       ),
     inputVideo: z
       .string()
@@ -195,7 +206,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
       .enum(["multivideo", "keyframes", "reference"])
       .optional()
       .describe(
-        "When using input images, choose multivideo blending, explicit first/last keyframes, or reference image conditioning.",
+        "Optional specialized multi-image mode. Omit for single-image image-to-video. multivideo and keyframes require at least 2 images; reference is only valid when the selected model explicitly lists reference input mode.",
       ),
     seed: z
       .number()
@@ -294,8 +305,10 @@ export async function runVideoGenerate(
   input: VideoGenerateInput,
   submitVideoJob?: SubmitVideoJobFn,
   attachmentMap?: Record<string, string>,
+  resolveInputImage?: ResolveVideoInputImageFn,
 ): Promise<VideoGenerateResult> {
   let effectiveInput = input;
+  const requestedInputImageCount = input.inputImages?.length ?? 0;
   const t0 = Date.now();
   const lap = (label: string, extra?: Record<string, unknown>) => {
     console.log(
@@ -315,30 +328,70 @@ export async function runVideoGenerate(
     };
   }
 
-  // Filter invalid image references
-  if (effectiveInput.inputImages?.length) {
-    const validImages = effectiveInput.inputImages.filter(
-      (img) =>
-        img.startsWith("http://") ||
-        img.startsWith("https://") ||
-        img.startsWith("data:"),
+  if (effectiveInput.inputImages?.length && resolveInputImage) {
+    try {
+      const resolvedImages = await Promise.all(
+        effectiveInput.inputImages.map((image) => resolveInputImage(image)),
+      );
+      effectiveInput = {
+        ...effectiveInput,
+        inputImages: resolvedImages.filter(
+          (image): image is string => typeof image === "string",
+        ),
+      };
+    } catch {
+      return {
+        summary:
+          "Video generation failed: One or more requested image inputs could not be resolved.",
+        error: "One or more requested image inputs could not be resolved.",
+      };
+    }
+  }
+
+  // Reject unresolved references instead of silently changing the requested
+  // input count or downgrading an image-to-video call to text-to-video.
+  if (requestedInputImageCount > 0) {
+    const resolvedImages = effectiveInput.inputImages ?? [];
+    const validImages = resolvedImages.filter(
+      (image) =>
+        image.startsWith("http://") ||
+        image.startsWith("https://") ||
+        image.startsWith("data:"),
     );
-    if (validImages.length !== effectiveInput.inputImages.length) {
+    if (validImages.length !== requestedInputImageCount) {
       lap("filtered_invalid_refs", {
-        before: effectiveInput.inputImages.length,
+        before: requestedInputImageCount,
         after: validImages.length,
-        dropped: effectiveInput.inputImages.filter(
-          (img) =>
-            !img.startsWith("http://") &&
-            !img.startsWith("https://") &&
-            !img.startsWith("data:"),
+        dropped: resolvedImages.filter(
+          (image) =>
+            !image.startsWith("http://") &&
+            !image.startsWith("https://") &&
+            !image.startsWith("data:"),
         ),
       });
+      return {
+        summary:
+          "Video generation failed: One or more requested image inputs could not be resolved.",
+        error: "One or more requested image inputs could not be resolved.",
+      };
     }
     effectiveInput = {
       ...effectiveInput,
-      inputImages: validImages.length > 0 ? validImages : undefined,
+      inputImages: validImages,
     };
+  }
+
+  if (
+    effectiveInput.model.startsWith(AGNES_VIDEO_MODEL_PREFIX) &&
+    effectiveInput.inputImages?.length === 1 &&
+    effectiveInput.videoMode
+  ) {
+    lap("normalized_single_image_mode", {
+      from: effectiveInput.videoMode,
+      to: "image",
+    });
+    const { videoMode: _videoMode, ...singleImageInput } = effectiveInput;
+    effectiveInput = singleImageInput;
   }
 
   validateAgnesVideoInput(effectiveInput);
@@ -657,6 +710,7 @@ export async function runVideoGenerate(
 
 export function createVideoGenerateTool(deps?: {
   submitVideoJob?: SubmitVideoJobFn;
+  resolveInputImage?: ResolveVideoInputImageFn;
   layoutInspectionState?: CanvasLayoutInspectionState;
   availableModels?: AvailableVideoModel[];
 }) {
@@ -674,6 +728,7 @@ export function createVideoGenerateTool(deps?: {
         input,
         deps?.submitVideoJob,
         attachmentMap,
+        deps?.resolveInputImage,
       );
       if (!result.error && deps?.layoutInspectionState) {
         deps.layoutInspectionState.canvasId = undefined;

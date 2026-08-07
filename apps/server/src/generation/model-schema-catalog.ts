@@ -30,6 +30,7 @@ type ImageSchemaOptions = {
 };
 
 type VideoSchemaOptions = {
+  description?: string;
   allowedDurations?: readonly number[];
   maxDuration: number;
   resolutions: readonly string[];
@@ -138,7 +139,7 @@ function getExplicitImageSchema(modelId: string) {
   }
   if (modelId === "codex/gpt-image-2") {
     return imageSchema({
-      maxInputImages: 16,
+      maxInputImages: 5,
       outputFormats: ["png"],
       seed: false,
       size: false,
@@ -150,6 +151,8 @@ function getExplicitImageSchema(modelId: string) {
 function getExplicitVideoSchema(modelId: string) {
   if (modelId === "agnes-video/agnes-video-v2.0") {
     return videoSchema({
+      description:
+        "Agnes 1080p combinations: text-to-video supports at most 241 frames (10s at 24fps); image-conditioned modes support at most 169 frames (6s at 24fps). Longer requests are generated at 720p.",
       allowedDurations: AGNES_VIDEO_ALLOWED_DURATIONS,
       maxDuration: 16,
       resolutions: ["480p", "720p", "1080p"],
@@ -478,6 +481,7 @@ function videoSchema(options: VideoSchemaOptions): GenerationModelSchema {
 
   return {
     $schema: DRAFT_2020_12,
+    ...(options.description ? { description: options.description } : {}),
     type: "object",
     properties,
     required: ["prompt", "model"],

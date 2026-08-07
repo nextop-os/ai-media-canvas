@@ -190,17 +190,25 @@ describe("CodexImagegenProvider", () => {
     }
   });
 
-  it("materializes reference images for Codex imagegen", async () => {
+  it("attaches materialized reference images to Codex exec", async () => {
     const sourceHome = await createCodexImagegenHomeFixture();
     const execCodex = vi.fn(async (args: readonly string[], options) => {
       const instruction = String(args.at(-1));
       const toolArguments = JSON.parse(instruction.split("\n")[2] ?? "{}") as {
         prompt: string;
-        referenced_image_paths: string[];
+        num_last_images_to_include: number;
       };
-      const referencePath = toolArguments.referenced_image_paths[0];
-      if (!referencePath) throw new Error("missing reference path");
-      await expect(readFile(referencePath, "utf8")).resolves.toBe("ref-bytes");
+      const referencePaths = args.flatMap((arg, index) =>
+        arg === "--image" && args[index + 1] ? [args[index + 1] as string] : [],
+      );
+      expect(referencePaths).toHaveLength(2);
+      await expect(readFile(referencePaths[0] ?? "", "utf8")).resolves.toBe(
+        "first-ref",
+      );
+      await expect(readFile(referencePaths[1] ?? "", "utf8")).resolves.toBe(
+        "second-ref",
+      );
+      expect(toolArguments.num_last_images_to_include).toBe(2);
       const imagePath = join(options.generatedImagesDir, "result.png");
       await mkdir(dirname(imagePath), { recursive: true });
       await writeFile(imagePath, createPngBuffer(1024, 1024));
@@ -216,20 +224,19 @@ describe("CodexImagegenProvider", () => {
         model: "codex/gpt-image-2",
         prompt: "edit this",
         inputImages: [
-          `data:image/png;base64,${Buffer.from("ref-bytes").toString("base64")}`,
+          `data:image/png;base64,${Buffer.from("first-ref").toString("base64")}`,
+          `data:image/png;base64,${Buffer.from("second-ref").toString("base64")}`,
         ],
       });
 
       const instruction = String(execCodex.mock.calls[0]?.[0].at(-1));
       const args = execCodex.mock.calls[0]?.[0] ?? [];
       expect(instruction).toContain(
-        "Use the supplied reference images for subject, composition, or style as requested",
+        "Use the attached reference images for subject, composition, or style as requested",
       );
-      expect(instruction).toContain("referenced_image_paths");
-      expect(args).not.toContain("--image");
-      expect(instruction).toMatch(
-        /"referenced_image_paths":\["[^"]+reference-1\.png"\]/,
-      );
+      expect(instruction).not.toContain("referenced_image_paths");
+      expect(args).toContain("--image");
+      expect(instruction).toMatch(/"num_last_images_to_include":2/);
     } finally {
       await rm(sourceHome, { recursive: true, force: true });
     }
@@ -286,7 +293,7 @@ describe("CodexImagegenProvider", () => {
     }
   });
 
-  it("rejects more than 16 Codex imagegen reference images", async () => {
+  it("rejects more than 5 Codex imagegen reference images", async () => {
     const provider = new CodexImagegenProvider({
       execCodex: vi.fn(),
     });
@@ -296,7 +303,7 @@ describe("CodexImagegenProvider", () => {
         model: "codex/gpt-image-2",
         prompt: "edit this",
         inputImages: Array.from(
-          { length: 17 },
+          { length: 6 },
           (_, index) =>
             `data:image/png;base64,${Buffer.from(`ref-${index}`).toString("base64")}`,
         ),
