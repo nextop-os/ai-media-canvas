@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { buildAgentVideoJobPayload } from "../../../agent/job-payloads.js";
+import { runVideoGenerate } from "../../../agent/tools/video-generate.js";
 import {
   clearProviders,
   registerImageProvider,
@@ -602,6 +604,85 @@ describe("generation executors", () => {
       numFrames: 97,
       inputImages: ["data:image/png;base64,AAAA", "data:image/png;base64,BBBB"],
     });
+  });
+
+  it("keeps a canvas image through the agent-to-worker Agnes video flow", async () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-agent-canvas-video-"));
+    tempDirs.push(dataRoot);
+
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+    });
+    const captured: Array<Record<string, unknown>> = [];
+    registerVideoProvider({
+      name: "agnes-video",
+      models: [
+        {
+          id: "agnes-video/agnes-video-v2.0",
+          displayName: "Agnes Video",
+          description: "Agnes video provider",
+          capabilities: {
+            textToVideo: true,
+            imageToVideo: true,
+            videoToVideo: false,
+            audio: false,
+          },
+          limits: {
+            maxDuration: 16,
+            maxResolution: "1080p",
+            maxInputImages: 8,
+          },
+        },
+      ],
+      async generate(params) {
+        captured.push(params as unknown as Record<string, unknown>);
+        return {
+          url: "data:video/mp4;base64,ZmFrZS12aWRlbw==",
+          mimeType: "video/mp4",
+          width: 720,
+          height: 1280,
+          durationSeconds: 4,
+        };
+      },
+    });
+
+    const project = store.createProject({ name: "Agent Canvas Video" });
+    let submittedJob: ReturnType<typeof store.createBackgroundJob> | undefined;
+    const toolResult = await runVideoGenerate(
+      {
+        title: "Dancing canvas image",
+        prompt: "Animate the dancer",
+        model: "agnes-video/agnes-video-v2.0",
+        inputImages: ["/local-assets/image-asset-1"],
+        videoMode: "reference",
+      },
+      async (input) => {
+        submittedJob = store.createBackgroundJob({
+          jobType: "video_generation",
+          queueName: "video_generation_jobs",
+          projectId: project.id,
+          payload: buildAgentVideoJobPayload(input),
+        });
+        return { jobId: submittedJob.id, status: "generating" };
+      },
+      undefined,
+      async (input) =>
+        input === "/local-assets/image-asset-1"
+          ? "data:image/png;base64,AAAA"
+          : input,
+    );
+
+    expect(toolResult.error).toBeUndefined();
+    expect(submittedJob).toBeDefined();
+    if (!submittedJob) throw new Error("Expected the video job to be created.");
+    await executeVideoGenerationJob(store, submittedJob);
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      inputImages: ["data:image/png;base64,AAAA"],
+    });
+    expect(captured[0]).not.toHaveProperty("videoMode");
   });
 
   it("does not retry Agnes poll timeout after the remote video task was created", () => {
