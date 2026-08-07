@@ -14,11 +14,10 @@ import {
 
 const ICON_AGNES = "https://agnes-cdn.kiwiar.com/logo/agnes-icon-400x400.jpg";
 const DEFAULT_FRAME_RATE = 24;
-const DEFAULT_AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1";
 const DEFAULT_AGNES_MEDIA_TTL = "1h" as const;
 const AGNES_VIDEO_CREATE_TIMEOUT_MS = 60_000;
 const AGNES_VIDEO_CREATE_MAX_ATTEMPTS = 3;
-const AGNES_VIDEO_POLL_REQUEST_TIMEOUT_MS = 30_000;
+const AGNES_VIDEO_STATUS_TIMEOUT_MS = 30_000;
 const AGNES_VIDEO_POLL_INTERVAL_SECONDS = 10;
 const AGNES_VIDEO_POLL_TIMEOUT_SECONDS = 7_200;
 const AGNES_VIDEO_MODEL_IDS = ["agnes-video-v2.0"] as const;
@@ -47,24 +46,6 @@ type AgnesRemoteTaskMetadata = {
     raw?: unknown;
   }) => void | Promise<void>;
 };
-type AgnesVideoTaskResponse = {
-  completed_at?: number | string | null;
-  error?: unknown;
-  id?: string;
-  progress?: number;
-  raw?: unknown;
-  seconds?: number | string | null;
-  status?: string;
-  task_id?: string;
-  taskId?: string;
-  url?: string;
-  video_id?: string;
-  video_url?: string;
-  videoId?: string;
-  videoUrl?: string;
-  remixed_from_video_id?: string;
-};
-
 const AGNES_VIDEO_MODELS: readonly VideoModelInfo[] = [
   {
     id: "agnes-video/agnes-video-v2.0",
@@ -312,16 +293,12 @@ export class AgnesVideoProvider implements VideoProvider {
   readonly name = "agnes-video";
   readonly models = AGNES_VIDEO_MODELS;
   private client: ReturnType<typeof createAgnesClient>;
-  private apiKey: string;
-  private baseUrl: string;
 
   constructor(
     apiKey: string,
     baseUrl?: string,
     options: AgnesMediaOptions = {},
   ) {
-    this.apiKey = apiKey;
-    this.baseUrl = (baseUrl ?? DEFAULT_AGNES_BASE_URL).replace(/\/$/, "");
     const mediaOptions = resolveAgnesMediaOptions(options);
     this.client = createAgnesClient({
       apiKey,
@@ -486,17 +463,18 @@ export class AgnesVideoProvider implements VideoProvider {
     let pollId = initialPollId;
 
     for (;;) {
-      const task = await this.fetchVideoTask(pollId);
-      const status = normalizeAgnesVideoStatus(task.status);
-      const videoId = extractAgnesVideoId(task, pollId);
-      const remoteTaskId =
-        videoId ?? extractAgnesTaskId(task, pollId) ?? pollId;
+      const task = await this.client.video.get(pollId, {
+        timeoutMs: AGNES_VIDEO_STATUS_TIMEOUT_MS,
+      });
+      const status = task.status;
+      const videoId = task.videoId;
+      const remoteTaskId = videoId ?? task.taskId ?? pollId;
       await metadata.onRemoteTaskStatus?.({
         provider: this.name,
         taskId: remoteTaskId,
         ...(videoId ? { videoId } : {}),
-        ...(status ? { status } : {}),
-        raw: task.raw ?? task,
+        status,
+        raw: task.raw,
       });
 
       if (status === "failed" || status === "canceled") {
@@ -507,9 +485,8 @@ export class AgnesVideoProvider implements VideoProvider {
         );
       }
 
-      if (status === "completed" || task.completed_at) {
-        const videoUrl = extractAgnesVideoUrl(task);
-        if (!videoUrl) {
+      if (status === "completed") {
+        if (!task.videoUrl) {
           throw new GenerationError(
             this.name,
             "api_error",
@@ -517,12 +494,12 @@ export class AgnesVideoProvider implements VideoProvider {
           );
         }
         return {
-          url: videoUrl,
+          url: task.videoUrl,
           mimeType: "video/mp4",
           width: request.width,
           height: request.height,
           durationSeconds:
-            coerceSeconds(task.seconds) ??
+            task.seconds ??
             request.durationSeconds ??
             Math.round((request.numFrames - 1) / request.frameRate),
         };
@@ -543,108 +520,6 @@ export class AgnesVideoProvider implements VideoProvider {
       await delay(AGNES_VIDEO_POLL_INTERVAL_SECONDS * 1_000);
     }
   }
-
-  private async fetchVideoTask(
-    pollId: string,
-  ): Promise<AgnesVideoTaskResponse> {
-    const response = await fetch(buildAgnesVideoPollUrl(this.baseUrl, pollId), {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      signal: AbortSignal.timeout(AGNES_VIDEO_POLL_REQUEST_TIMEOUT_MS),
-    });
-    const text = await response.text();
-    const body = parseAgnesJson(text);
-    if (!response.ok) {
-      throw new GenerationError(
-        this.name,
-        "api_error",
-        getAgnesTaskErrorMessage(
-          typeof body === "object" && body !== null && "error" in body
-            ? (body as { error?: unknown }).error
-            : body,
-          `HTTP ${response.status}`,
-        ),
-      );
-    }
-    return typeof body === "object" && body !== null
-      ? (body as AgnesVideoTaskResponse)
-      : { raw: body };
-  }
-}
-
-function buildAgnesVideoPollUrl(baseUrl: string, pollId: string): string {
-  if (pollId.startsWith("task_")) {
-    return `${baseUrl}/videos/${encodeURIComponent(pollId)}`;
-  }
-  const url = new URL("/agnesapi", new URL(baseUrl));
-  url.searchParams.set("video_id", pollId);
-  return url.toString();
-}
-
-function extractAgnesVideoId(
-  task: AgnesVideoTaskResponse,
-  fallbackId: string,
-): string | undefined {
-  if (typeof task.video_id === "string") return task.video_id;
-  if (typeof task.videoId === "string") return task.videoId;
-  if (typeof task.id === "string" && task.id.startsWith("video_")) {
-    return task.id;
-  }
-  return fallbackId.startsWith("video_") ? fallbackId : undefined;
-}
-
-function extractAgnesTaskId(
-  task: AgnesVideoTaskResponse,
-  fallbackId: string,
-): string | undefined {
-  if (typeof task.task_id === "string") return task.task_id;
-  if (typeof task.taskId === "string") return task.taskId;
-  if (typeof task.id === "string" && task.id.startsWith("task_")) {
-    return task.id;
-  }
-  return fallbackId.startsWith("task_") ? fallbackId : undefined;
-}
-
-function extractAgnesVideoUrl(
-  task: AgnesVideoTaskResponse,
-): string | undefined {
-  const candidates = [
-    task.video_url,
-    task.videoUrl,
-    task.url,
-    task.remixed_from_video_id,
-  ];
-  return candidates.find(
-    (candidate) =>
-      typeof candidate === "string" && /^https?:\/\//.test(candidate),
-  );
-}
-
-function normalizeAgnesVideoStatus(status: string | undefined) {
-  if (!status) return undefined;
-  const normalized = status.toLowerCase();
-  if (normalized === "succeeded") return "completed";
-  if (normalized === "cancelled") return "canceled";
-  return normalized;
-}
-
-function parseAgnesJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
-
-function coerceSeconds(seconds: number | string | null | undefined) {
-  if (typeof seconds === "number") return seconds;
-  if (typeof seconds === "string") {
-    const parsed = Number(seconds);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
 }
 
 function getAgnesTaskErrorMessage(error: unknown, fallback: string) {

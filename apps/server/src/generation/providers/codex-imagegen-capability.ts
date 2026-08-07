@@ -130,15 +130,10 @@ export async function detectConfiguredCodexImagegenCapability(options: {
     return detectCodexImagegenCapability({ enabled: false });
   }
   try {
-    const target = await resolveCodexAgentTarget({
-      ...(options.tuttiCliPath
-        ? { detectContext: { env: { TUTTI_CLI: options.tuttiCliPath } } }
-        : {}),
-      ...(options.runtime ? { runtime: options.runtime } : {}),
-    });
+    const codexPath = await resolveConfiguredCodexImagegenCommand(options);
     return detectCodexImagegenCapability({
       enabled: true,
-      codexPath: target.executablePath,
+      codexPath,
       ...(options.codexHome ? { codexHome: options.codexHome } : {}),
       ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
     });
@@ -154,6 +149,19 @@ export async function detectConfiguredCodexImagegenCapability(options: {
       checkedAt: new Date().toISOString(),
     };
   }
+}
+
+export async function resolveConfiguredCodexImagegenCommand(options: {
+  tuttiCliPath?: string;
+  runtime?: AgentDiscoveryRuntime;
+}): Promise<string> {
+  const target = await resolveCodexAgentTarget({
+    ...(options.tuttiCliPath
+      ? { detectContext: { env: { TUTTI_CLI: options.tuttiCliPath } } }
+      : {}),
+    ...(options.runtime ? { runtime: options.runtime } : {}),
+  });
+  return target.executablePath ?? "codex";
 }
 
 function probeCodexImagegenCapability(options: {
