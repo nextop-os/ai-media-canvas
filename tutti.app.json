@@ -1,7 +1,7 @@
 {
   "schemaVersion": "tutti.app.manifest.v1",
   "appId": "ai-media-canvas",
-  "version": "0.0.71",
+  "version": "0.0.72",
   "name": "AI Canvas",
   "description": "Generate and organize AI images and videos on a canvas.",
   "icon": {
