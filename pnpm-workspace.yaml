@@ -7,6 +7,5 @@ ignoredBuiltDependencies:
   - msw
 
 onlyBuiltDependencies:
-  - agnes-ai-cli
   - esbuild
   - sharp
