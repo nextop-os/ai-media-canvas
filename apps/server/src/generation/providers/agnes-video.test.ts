@@ -1,23 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { fetchMock, videoGenerateMock, videoPollMock, createAgnesClientMock } =
-  vi.hoisted(() => {
-    const fetchMock = vi.fn();
+const { videoGenerateMock, videoGetMock, createAgnesClientMock } = vi.hoisted(
+  () => {
     const videoGenerateMock = vi.fn();
-    const videoPollMock = vi.fn();
+    const videoGetMock = vi.fn();
     const createAgnesClientMock = vi.fn(() => ({
       video: {
         generate: videoGenerateMock,
-        poll: videoPollMock,
+        get: videoGetMock,
       },
     }));
     return {
-      fetchMock,
       videoGenerateMock,
-      videoPollMock,
+      videoGetMock,
       createAgnesClientMock,
     };
-  });
+  },
+);
 
 vi.mock("agnes-ai-cli", () => ({
   createAgnesClient: createAgnesClientMock,
@@ -29,9 +28,7 @@ import { AgnesVideoProvider } from "./agnes-video.js";
 describe("AgnesVideoProvider", () => {
   beforeEach(() => {
     videoGenerateMock.mockReset();
-    videoPollMock.mockReset();
-    fetchMock.mockReset();
-    vi.stubGlobal("fetch", fetchMock);
+    videoGetMock.mockReset();
     createAgnesClientMock.mockClear();
     videoGenerateMock.mockResolvedValue({
       ok: true,
@@ -41,28 +38,16 @@ describe("AgnesVideoProvider", () => {
       model: "agnes-video-v2.0",
       raw: {},
     });
-    videoPollMock.mockResolvedValue({
+    videoGetMock.mockResolvedValue({
       ok: true,
       taskId: "task_123",
+      videoId: "video_123",
       status: "completed",
       model: "agnes-video-v2.0",
       videoUrl: "https://cdn.agnes.example/generated.mp4",
       seconds: 5,
       raw: {},
     });
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "task_123",
-          object: "video",
-          status: "completed",
-          video_id: "video_123",
-          video_url: "https://cdn.agnes.example/generated.mp4",
-          seconds: "5.0",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
   });
 
   it("maps prompt-only requests to Agnes text2video mode", async () => {
@@ -92,14 +77,9 @@ describe("AgnesVideoProvider", () => {
       numFrames: 121,
       frameRate: 24,
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://agnes.example/agnesapi?video_id=video_123",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer agnes-test-key",
-        }),
-      }),
-    );
+    expect(videoGetMock).toHaveBeenCalledWith("video_123", {
+      timeoutMs: 30_000,
+    });
     expect(result).toMatchObject({
       url: "https://cdn.agnes.example/generated.mp4",
       mimeType: "video/mp4",
@@ -377,7 +357,7 @@ describe("AgnesVideoProvider", () => {
 
       await rejection;
       expect(videoGenerateMock).toHaveBeenCalledTimes(3);
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(videoGetMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -408,14 +388,14 @@ describe("AgnesVideoProvider", () => {
       const result = await resultPromise;
 
       expect(videoGenerateMock).toHaveBeenCalledTimes(2);
-      expect(fetchMock).toHaveBeenCalled();
+      expect(videoGetMock).toHaveBeenCalled();
       expect(result.url).toBe("https://cdn.agnes.example/generated.mp4");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("keeps polling queued Agnes tasks instead of using the SDK timeout", async () => {
+  it("keeps polling queued Agnes tasks through the CLI status adapter", async () => {
     const provider = new AgnesVideoProvider("agnes-test-key");
     videoGenerateMock.mockResolvedValueOnce({
       ok: true,
@@ -424,32 +404,25 @@ describe("AgnesVideoProvider", () => {
       model: "agnes-video-v2.0",
       raw: {},
     });
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: "task_123",
-            object: "video",
-            status: "queued",
-            video_id: "video_123",
-            progress: 0,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: "task_123",
-            object: "video",
-            status: "completed",
-            video_id: "video_123",
-            remixed_from_video_id: "https://cdn.agnes.example/generated.mp4",
-            seconds: "5.0",
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+    videoGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        taskId: "task_123",
+        videoId: "video_123",
+        status: "queued",
+        model: "agnes-video-v2.0",
+        raw: { progress: 0 },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        taskId: "task_123",
+        videoId: "video_123",
+        status: "completed",
+        model: "agnes-video-v2.0",
+        videoUrl: "https://cdn.agnes.example/generated.mp4",
+        seconds: 5,
+        raw: {},
+      });
     vi.useFakeTimers();
 
     const resultPromise = provider.generate({
@@ -461,16 +434,12 @@ describe("AgnesVideoProvider", () => {
     await vi.advanceTimersByTimeAsync(10_000);
     const result = await resultPromise;
 
-    expect(videoPollMock).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://apihub.agnes-ai.com/v1/videos/task_123",
-      expect.any(Object),
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://apihub.agnes-ai.com/agnesapi?video_id=video_123",
-      expect.any(Object),
-    );
+    expect(videoGetMock).toHaveBeenNthCalledWith(1, "task_123", {
+      timeoutMs: 30_000,
+    });
+    expect(videoGetMock).toHaveBeenNthCalledWith(2, "video_123", {
+      timeoutMs: 30_000,
+    });
     expect(result.url).toBe("https://cdn.agnes.example/generated.mp4");
     vi.useRealTimers();
   });
@@ -488,14 +457,9 @@ describe("AgnesVideoProvider", () => {
       resolution: "720p",
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://agnes.example/v1/videos/task_legacy_123",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer agnes-test-key",
-        }),
-      }),
-    );
+    expect(videoGetMock).toHaveBeenCalledWith("task_legacy_123", {
+      timeoutMs: 30_000,
+    });
     expect(result.url).toBe("https://cdn.agnes.example/generated.mp4");
   });
 
@@ -535,23 +499,16 @@ describe("AgnesVideoProvider", () => {
 
   it("reports provider failures from Agnes task polling", async () => {
     const provider = new AgnesVideoProvider("agnes-test-key");
-    fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          id: "task_123",
-          object: "video",
-          status: "failed",
-          completed_at: 1790000000,
-          error: {
-            message: "Remote generation failed.",
-          },
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
-    );
+    videoGetMock.mockResolvedValueOnce({
+      ok: true,
+      taskId: "task_123",
+      status: "failed",
+      model: "agnes-video-v2.0",
+      error: {
+        message: "Remote generation failed.",
+      },
+      raw: {},
+    });
 
     await expect(
       provider.generate({

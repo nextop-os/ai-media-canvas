@@ -21,7 +21,7 @@ export type ResolvedAgentTarget = {
 };
 
 export type ResolvedCodexAgentTarget = ResolvedAgentTarget & {
-  executablePath: string;
+  executablePath?: string;
 };
 
 export class AgentTargetResolutionError extends Error {
@@ -91,8 +91,8 @@ export async function detectAgentTargets(
 
 /**
  * Resolves the configured Codex target without silently choosing between
- * multiple candidates. The default target wins when it is Codex; otherwise a
- * single available Codex target is unambiguous.
+ * multiple candidates. The executable path is optional because older Tutti
+ * catalogs expose target availability without exposing a local path.
  */
 export async function resolveCodexAgentTarget(
   input: {
@@ -111,8 +111,7 @@ export async function resolveCodexAgentTarget(
     if (
       detection.provider !== "codex" ||
       !detection.supported ||
-      !agentTargetId ||
-      !executablePath
+      !agentTargetId
     ) {
       return [];
     }
@@ -128,14 +127,16 @@ export async function resolveCodexAgentTarget(
   if (!selected) {
     throw new AgentTargetResolutionError(
       candidates.length === 0
-        ? "No available Codex Agent Target has a resolved executable."
+        ? "No available Codex Agent Target is configured."
         : "Multiple Codex Agent Targets are available; configure one as the default target.",
     );
   }
   return {
     agentTargetId: selected.agentTargetId,
     providerId: "codex",
-    executablePath: selected.executablePath,
+    ...(selected.executablePath
+      ? { executablePath: selected.executablePath }
+      : {}),
   };
 }
 

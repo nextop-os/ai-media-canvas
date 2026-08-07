@@ -52,8 +52,8 @@ importers:
         specifier: 0.7.9
         version: 0.7.9(@cfworker/json-schema@4.1.1)
       agnes-ai-cli:
-        specifier: ^0.1.4
-        version: 0.1.4
+        specifier: github:jomeswang/agnes-ai-cli#8f922e291547ac1e99662bd0945eb43027bf9e27
+        version: https://codeload.github.com/jomeswang/agnes-ai-cli/tar.gz/8f922e291547ac1e99662bd0945eb43027bf9e27
       ajv:
         specifier: ^8.18.0
         version: 8.18.0
@@ -3767,8 +3767,9 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  agnes-ai-cli@0.1.4:
-    resolution: {integrity: sha512-kP7jdE+L+4A84ynnT836a/L1YmEHNw2pPXwFJdcgiX2msgyB2HaRIk4qccWhx5EzM3xI/l/jFRM70wxjSStB+g==}
+  agnes-ai-cli@https://codeload.github.com/jomeswang/agnes-ai-cli/tar.gz/8f922e291547ac1e99662bd0945eb43027bf9e27:
+    resolution: {tarball: https://codeload.github.com/jomeswang/agnes-ai-cli/tar.gz/8f922e291547ac1e99662bd0945eb43027bf9e27}
+    version: 0.1.4
     engines: {node: '>=20'}
     hasBin: true
 
@@ -11331,7 +11332,7 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  agnes-ai-cli@0.1.4:
+  agnes-ai-cli@https://codeload.github.com/jomeswang/agnes-ai-cli/tar.gz/8f922e291547ac1e99662bd0945eb43027bf9e27:
     dependencies:
       commander: 15.0.0
       zod: 4.3.6

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
 import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   type CodexImagegenCommandRunner,
@@ -8,6 +8,7 @@ import {
   detectCodexImagegenCapability,
   detectConfiguredCodexImagegenCapability,
   parseCodexVersion,
+  resolveConfiguredCodexImagegenCommand,
 } from "./codex-imagegen-capability.js";
 
 const CODEX_IMAGEGEN_FEATURES = [
@@ -189,6 +190,32 @@ describe("detectCodexImagegenCapability", () => {
 });
 
 describe("detectConfiguredCodexImagegenCapability", () => {
+  it("falls back to the codex command for an available target without an executable path", async () => {
+    const runtime = {
+      cancel: async () => undefined,
+      detect: async () => [
+        {
+          agentTargetId: "local:codex",
+          provider: "codex",
+          displayName: "Codex",
+          authState: "ok",
+          models: [],
+          supported: true,
+        },
+      ],
+      listProviders: () => [
+        { id: "codex", displayName: "Codex", kind: "local-agent" as const },
+      ],
+      run: async function* () {
+        yield* [];
+      },
+    };
+
+    await expect(
+      resolveConfiguredCodexImagegenCommand({ runtime: runtime as never }),
+    ).resolves.toBe("codex");
+  });
+
   it("passes the configured Tutti CLI to target discovery", async () => {
     let detectedEnv: NodeJS.ProcessEnv | undefined;
     const runtime = {
@@ -198,7 +225,10 @@ describe("detectConfiguredCodexImagegenCapability", () => {
         return [
           {
             agentTargetId: "local:codex",
-            executablePath: join(process.cwd(), "__missing-codex-test-binary__"),
+            executablePath: join(
+              process.cwd(),
+              "__missing-codex-test-binary__",
+            ),
             provider: "codex",
             displayName: "Codex",
             authState: "ok",

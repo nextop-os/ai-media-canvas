@@ -203,6 +203,26 @@ describe("resolveCodexAgentTarget", () => {
     });
   });
 
+  it("keeps a unique available Codex target when its executable is omitted", async () => {
+    const result = await resolveCodexAgentTarget({
+      runtime: runtimeFor([
+        {
+          agentTargetId: "team:writer",
+          provider: "codex",
+          displayName: "Writer",
+          authState: "ok",
+          models: [],
+          supported: true,
+        },
+      ]) as never,
+    });
+
+    expect(result).toEqual({
+      agentTargetId: "team:writer",
+      providerId: "codex",
+    });
+  });
+
   it("fails closed when multiple Codex targets have no configured default", async () => {
     await expect(
       resolveCodexAgentTarget({
