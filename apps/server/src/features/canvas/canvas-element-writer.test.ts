@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   completeImageGenerationNode,
+  completeVideoGenerationNode,
   createCanvasAutoPlacementSequence,
   insertImageElement,
   insertImageGenerationNode,
@@ -322,6 +323,61 @@ describe("canvas element writer", () => {
         duration: 5,
         resolution: "720p",
         runId: "run-video-1",
+      },
+    });
+  });
+
+  it("completes video generation nodes in place with generated video metadata", async () => {
+    const client = createCanvasClient({
+      elements: [],
+      appState: {},
+      files: {},
+    });
+    const pending = await insertVideoGenerationNode(client, {
+      aspectRatio: "16:9",
+      canvasId: "canvas-1",
+      duration: 4,
+      jobId: "job-video-1",
+      model: "agnes-video/agnes-video-v2.0",
+      prompt: "A paper boat drifting",
+      resolution: "480p",
+      title: "Paper boat",
+    });
+
+    const completed = await completeVideoGenerationNode(client, {
+      assetId: "video-asset-1",
+      canvasId: "canvas-1",
+      durationSeconds: 4,
+      height: 480,
+      jobId: "job-video-1",
+      mimeType: "video/mp4",
+      model: "agnes-video/agnes-video-v2.0",
+      prompt: "A paper boat drifting",
+      resolution: "480p",
+      aspectRatio: "16:9",
+      signedUrl: "http://127.0.0.1:3001/local-assets/video-asset-1",
+      title: "Paper boat",
+      width: 854,
+    });
+
+    const content = client.state.content as {
+      elements: Array<Record<string, unknown>>;
+    };
+    expect(completed.elementId).toBe(pending.elementId);
+    expect(content.elements).toHaveLength(1);
+    expect(content.elements[0]).toMatchObject({
+      id: pending.elementId,
+      type: "rectangle",
+      width: 400,
+      height: 225,
+      customData: {
+        isVideo: true,
+        source: "generated",
+        jobId: "job-video-1",
+        assetId: "video-asset-1",
+        mimeType: "video/mp4",
+        videoUrl: "/local-assets/video-asset-1",
+        durationSeconds: 4,
       },
     });
   });

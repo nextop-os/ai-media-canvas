@@ -10,6 +10,8 @@ import {
 import type { VideoGenerateParams } from "../../../generation/types.js";
 import { GenerationError } from "../../../generation/utils.js";
 import type { LocalStore } from "../../../local/store.js";
+import { createLocalUserClient } from "../../../local/user-client.js";
+import { completeVideoGenerationNode } from "../../canvas/canvas-element-writer.js";
 import { refreshGenerationProviders } from "../../settings/settings-service.js";
 
 const DEFAULT_VIDEO_MODEL = "google-official/veo-3.1-generate-preview";
@@ -121,6 +123,27 @@ export async function executeVideoGenerationJob(
     scope: "generated",
     ...(projectId ? { projectId } : {}),
   });
+  if (job.canvas_id) {
+    try {
+      await completeVideoGenerationNode(createLocalUserClient(store), {
+        assetId: stored.asset.id,
+        canvasId: job.canvas_id,
+        durationSeconds: generated.durationSeconds,
+        height: generated.height,
+        jobId: job.id,
+        mimeType: stored.asset.mimeType ?? mimeType,
+        model,
+        prompt: payload.prompt,
+        ...(payload.aspect_ratio ? { aspectRatio: payload.aspect_ratio } : {}),
+        ...(payload.resolution ? { resolution: payload.resolution } : {}),
+        signedUrl: stored.url,
+        ...(payload.title ? { title: payload.title } : {}),
+        width: generated.width,
+      });
+    } catch (error) {
+      console.warn("[video-generation] canvas video insert failed:", error);
+    }
+  }
   return {
     asset_id: stored.asset.id,
     signed_url: stored.url,
