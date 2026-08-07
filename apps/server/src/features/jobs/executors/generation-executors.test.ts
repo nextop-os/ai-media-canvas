@@ -14,6 +14,8 @@ import type {
 } from "../../../generation/types.js";
 import { GenerationError } from "../../../generation/utils.js";
 import { createLocalStore } from "../../../local/store.js";
+import { createLocalUserClient } from "../../../local/user-client.js";
+import { insertVideoGenerationNode } from "../../canvas/canvas-element-writer.js";
 import { executeImageGenerationJob } from "./image-generation.js";
 import {
   executeVideoGenerationJob,
@@ -367,6 +369,88 @@ describe("generation executors", () => {
     expect(result.file_path).toBe(asset.filePath);
     expect(asset?.mimeType).toBe("video/mp4");
     expect(readFileSync(asset.filePath)).toEqual(videoBytes);
+  });
+
+  it("completes a bound video generation node on the canvas", async () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-job-video-canvas-"));
+    tempDirs.push(dataRoot);
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+    });
+    const videoBytes = Buffer.from("canvas-video-binary");
+    registerVideoProvider({
+      name: "test-video",
+      models: [
+        {
+          id: "test/video-model",
+          displayName: "Test Video",
+          description: "Test video provider",
+          capabilities: {
+            textToVideo: true,
+            imageToVideo: false,
+            videoToVideo: false,
+            audio: false,
+          },
+          limits: {
+            maxDuration: 8,
+            maxResolution: "1080p",
+            maxInputImages: 0,
+          },
+        },
+      ],
+      async generate() {
+        return {
+          url: `data:video/mp4;base64,${videoBytes.toString("base64")}`,
+          mimeType: "video/mp4",
+          width: 854,
+          height: 480,
+          durationSeconds: 4,
+        };
+      },
+    });
+    const project = store.createProject({ name: "Video Canvas Project" });
+    const job = store.createBackgroundJob({
+      jobType: "video_generation",
+      queueName: "video_generation_jobs",
+      projectId: project.id,
+      canvasId: project.primaryCanvas.id,
+      payload: {
+        prompt: "A paper boat drifting",
+        model: "test/video-model",
+        duration: 4,
+        aspect_ratio: "16:9",
+        resolution: "480p",
+      },
+    });
+    const pending = await insertVideoGenerationNode(
+      createLocalUserClient(store),
+      {
+        aspectRatio: "16:9",
+        canvasId: project.primaryCanvas.id,
+        duration: 4,
+        jobId: job.id,
+        model: "test/video-model",
+        prompt: "A paper boat drifting",
+        resolution: "480p",
+      },
+    );
+
+    const result = await executeVideoGenerationJob(store, job);
+    const canvas = store.getCanvas(project.primaryCanvas.id);
+
+    expect(canvas?.content.elements).toHaveLength(1);
+    expect(canvas?.content.elements[0]).toMatchObject({
+      id: pending.elementId,
+      type: "rectangle",
+      customData: {
+        isVideo: true,
+        source: "generated",
+        jobId: job.id,
+        assetId: result.asset_id,
+        videoUrl: `/local-assets/${result.asset_id}`,
+      },
+    });
   });
 
   it("uses the video generation title as the exposed reference name", async () => {

@@ -272,6 +272,99 @@ export async function insertVideoElement(
   return { elementId };
 }
 
+export async function completeVideoGenerationNode(
+  client: CanvasClient,
+  input: {
+    assetId?: string;
+    aspectRatio?: string;
+    canvasId: string;
+    durationSeconds?: number;
+    elementId?: string;
+    height: number;
+    jobId: string;
+    mimeType: string;
+    model?: string;
+    prompt: string;
+    resolution?: string;
+    signedUrl: string;
+    title?: string;
+    width: number;
+  },
+): Promise<{ elementId: string }> {
+  const content = await readCanvasContent(client, input.canvasId);
+  const elements = [...(content.elements ?? [])];
+  const videoUrl = input.assetId
+    ? `/local-assets/${input.assetId}`
+    : input.signedUrl;
+
+  const existingVideo = elements.find(
+    (el) =>
+      !el.isDeleted &&
+      el.type === "rectangle" &&
+      input.assetId &&
+      recordValue(el.customData)?.assetId === input.assetId,
+  );
+  if (existingVideo?.id && typeof existingVideo.id === "string") {
+    return { elementId: existingVideo.id };
+  }
+
+  const generatorIndex = elements.findIndex((el) => {
+    const customData = recordValue(el.customData);
+    if (!customData || customData.type !== "video-generator") return false;
+    if (customData.jobId !== input.jobId) return false;
+    return input.elementId ? el.id === input.elementId : true;
+  });
+  const generator = generatorIndex >= 0 ? elements[generatorIndex] : undefined;
+  const scaled = scaleToFit(input.width, input.height, 640);
+  const display = generator
+    ? {
+        x: finiteNumber(generator.x) ?? 0,
+        y: finiteNumber(generator.y) ?? 0,
+        width: finiteNumber(generator.width) ?? scaled.width,
+        height: finiteNumber(generator.height) ?? scaled.height,
+      }
+    : autoPlacement(elements, scaled, content.appState);
+  const elementId =
+    generator && typeof generator.id === "string" ? generator.id : generateId();
+  const videoElement = {
+    ...createElementBase(elementId),
+    type: "rectangle",
+    x: display.x,
+    y: display.y,
+    width: display.width,
+    height: display.height,
+    strokeColor: "#111827",
+    backgroundColor: "#000000",
+    fillStyle: "solid",
+    roughness: 0,
+    link: null,
+    customData: {
+      isVideo: true,
+      source: "generated",
+      jobId: input.jobId,
+      ...(input.assetId ? { assetId: input.assetId } : {}),
+      mimeType: input.mimeType,
+      prompt: input.prompt,
+      videoUrl,
+      ...(input.model ? { model: input.model } : {}),
+      ...(input.aspectRatio ? { aspectRatio: input.aspectRatio } : {}),
+      ...(input.resolution ? { resolution: input.resolution } : {}),
+      ...(input.title ? { title: input.title } : {}),
+      ...(input.durationSeconds != null
+        ? { durationSeconds: input.durationSeconds }
+        : {}),
+    },
+  };
+
+  if (generatorIndex >= 0) {
+    elements[generatorIndex] = videoElement;
+  } else {
+    elements.push(videoElement);
+  }
+  await writeCanvasContent(client, input.canvasId, { ...content, elements });
+  return { elementId };
+}
+
 export async function insertImageGenerationNode(
   client: CanvasClient,
   input: {
