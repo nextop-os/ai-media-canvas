@@ -31,7 +31,7 @@ const DEFAULT_CODEX_IMAGEGEN_AGENT_MODEL = "gpt-5.5";
 const CODEX_IMAGEGEN_REASONING_EFFORT = "low";
 const GENERATED_IMAGE_POLL_MS = 100;
 const CODEX_IMAGEGEN_MODEL_ID = "codex/gpt-image-2";
-const CODEX_IMAGEGEN_MAX_INPUT_IMAGES = 16;
+const CODEX_IMAGEGEN_MAX_INPUT_IMAGES = 5;
 
 export const CODEX_IMAGEGEN_MODELS: readonly ModelInfo[] = [
   {
@@ -193,6 +193,7 @@ export class CodexImagegenProvider implements ImageProvider {
           "--skip-git-repo-check",
           "-C",
           runDir,
+          ...referenceImages.flatMap((imagePath) => ["--image", imagePath]),
           "--",
           instruction,
         ],
@@ -391,14 +392,14 @@ function buildCodexImagegenInstruction(
     "Output format: PNG.",
     ...(options.referenceImages.length > 0
       ? [
-          "Use the supplied reference images for subject, composition, or style as requested, preserving their input order.",
+          "Use the attached reference images for subject, composition, or style as requested, preserving their input order.",
         ]
       : []),
   ].join("\n");
   const toolArguments = {
     prompt: imagePrompt,
     ...(options.referenceImages.length > 0
-      ? { referenced_image_paths: options.referenceImages }
+      ? { num_last_images_to_include: options.referenceImages.length }
       : {}),
   };
   return [

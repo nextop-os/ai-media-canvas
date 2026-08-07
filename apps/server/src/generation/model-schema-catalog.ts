@@ -139,7 +139,7 @@ function getExplicitImageSchema(modelId: string) {
   }
   if (modelId === "codex/gpt-image-2") {
     return imageSchema({
-      maxInputImages: 16,
+      maxInputImages: 5,
       outputFormats: ["png"],
       seed: false,
       size: false,

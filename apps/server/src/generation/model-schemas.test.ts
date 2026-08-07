@@ -2,6 +2,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { ServerEnv } from "../config/env.js";
+import { getImageGenerationModelSchema } from "./model-schema-catalog.js";
 import {
   validateImageGenerationParams,
   validateVideoGenerationParams,
@@ -57,6 +58,16 @@ describe("generation model schemas", () => {
         ],
       }),
     ).toThrow(/inputImages/i);
+  });
+
+  it("limits Codex reference images to the attached-image tool capacity", () => {
+    const schema = getImageGenerationModelSchema({
+      id: "codex/gpt-image-2",
+      displayName: "GPT Image 2",
+      description: "Codex image generation",
+    });
+
+    expect(schema.properties.inputImages?.maxItems).toBe(5);
   });
 
   it("validates Kie video duration, resolution, and mode constraints", () => {
