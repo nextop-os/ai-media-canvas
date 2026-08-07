@@ -119,6 +119,7 @@ AIMC_WEB_ORIGIN=http://localhost:3000
 AIMC_SERVER_BASE_URL=http://localhost:3001
 AIMC_WEB_DIST=
 AIMC_DATA_ROOT=
+AIMC_DATABASE_ROOT=
 AIMC_AGENT_BACKEND_MODE=state
 AIMC_AGENT_FILES_ROOT=
 AIMC_SKILLS_ROOT=
@@ -131,7 +132,8 @@ By default, local runtime data is written under `local-data/`:
 - SQLite database: `local-data/ai-media-canvas.db`
 - generated and uploaded assets: `local-data/assets/`
 
-Set `AIMC_DATA_ROOT` to move durable app data elsewhere.
+Set `AIMC_DATA_ROOT` to move app-owned assets elsewhere. Set
+`AIMC_DATABASE_ROOT` when SQLite files must use a separate database directory.
 
 ## Workspace Layout
 

@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { Worker } from "node:worker_threads";
@@ -59,17 +59,75 @@ describe("createLocalStore", () => {
     const databaseRoot = mkdtempSync(join(tmpdir(), "aimc-database-"));
     tempDirs.push(dataRoot, databaseRoot);
 
-    createLocalStore({
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+      databaseRoot,
+    });
+    const upload = store.uploadFile({
+      bucket: "project-assets",
+      fileName: "upload.png",
+      fileBuffer: Buffer.from("upload"),
+      mimeType: "image/png",
+    });
+
+    expect(existsSync(join(databaseRoot, "ai-media-canvas.db"))).toBe(true);
+    expect(existsSync(join(dataRoot, "ai-media-canvas.db"))).toBe(false);
+    expect(existsSync(join(databaseRoot, "assets"))).toBe(false);
+    expect(existsSync(join(dataRoot, "assets"))).toBe(true);
+    expect(upload.filePath.startsWith(join(dataRoot, "assets", "uploads"))).toBe(
+      true,
+    );
+  });
+
+  it("migrates legacy database assets into the app data root", () => {
+    const dataRoot = mkdtempSync(join(tmpdir(), "aimc-data-"));
+    const databaseRoot = mkdtempSync(join(tmpdir(), "aimc-database-"));
+    tempDirs.push(dataRoot, databaseRoot);
+
+    const legacyStore = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot: databaseRoot,
+      databaseRoot,
+    });
+    const legacy = legacyStore.uploadFile({
+      bucket: "project-assets",
+      fileName: "legacy.png",
+      fileBuffer: Buffer.from("legacy-image"),
+      mimeType: "image/png",
+      scope: "generated",
+    });
+    expect(existsSync(legacy.filePath)).toBe(true);
+
+    const migratedStore = createLocalStore({
       assetBaseUrl: "http://127.0.0.1:3001",
       dataRoot,
       databaseRoot,
     });
 
-    expect(existsSync(join(databaseRoot, "ai-media-canvas.db"))).toBe(true);
-    expect(existsSync(join(dataRoot, "ai-media-canvas.db"))).toBe(false);
-    // Private assets stay with the VM-local database root, not FabricFS dataRoot.
-    expect(existsSync(join(databaseRoot, "assets"))).toBe(true);
-    expect(existsSync(join(dataRoot, "assets"))).toBe(false);
+    const migratedPath = join(
+      dataRoot,
+      "assets",
+      "generated",
+      basename(legacy.filePath),
+    );
+    expect(existsSync(migratedPath)).toBe(true);
+    expect(existsSync(legacy.filePath)).toBe(false);
+
+    const db = new DatabaseSync(join(databaseRoot, "ai-media-canvas.db"));
+    const row = db
+      .prepare("SELECT file_path FROM assets WHERE id = ?")
+      .get(legacy.asset.id) as { file_path: string };
+    db.close();
+    expect(row.file_path).toBe(migratedPath);
+    expect(() =>
+      createLocalStore({
+        assetBaseUrl: migratedStore.assetBaseUrl,
+        dataRoot,
+        databaseRoot,
+      }),
+    ).not.toThrow();
+    expect(existsSync(migratedPath)).toBe(true);
   });
 
   it("creates unique slugs for duplicate project names", () => {

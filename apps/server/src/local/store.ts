@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  constants as fsConstants,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -295,9 +297,9 @@ export function createLocalStore(options: {
   const dataRoot =
     options.dataRoot ?? resolve(process.cwd(), "../../local-data");
   const databaseRoot = options.databaseRoot ?? dataRoot;
-  // Private assets (thumbnails, uploads, brand-kit) live with the VM-local DB.
-  // Public generated media goes under the user project /workspace dir instead.
-  const assetsRoot = join(databaseRoot, "assets");
+  // SQLite state belongs in databaseRoot. User-visible assets must live under
+  // dataRoot so app-data-relative references resolve through the Tutti host.
+  const assetsRoot = join(dataRoot, "assets");
   const uploadsRoot = join(assetsRoot, "uploads");
   const brandKitRoot = join(assetsRoot, "brand-kits");
   const projectRoot = join(assetsRoot, "projects");
@@ -530,6 +532,7 @@ export function createLocalStore(options: {
 
   ensureWorkspaceSettingsSchema();
   ensureAssetSchema();
+  migrateLegacyDatabaseAssets();
   ensureCanvasSchema();
   ensureProjectSchema();
   ensureAgentRunSchema();
@@ -644,6 +647,96 @@ export function createLocalStore(options: {
       db.prepare(
         `ALTER TABLE assets ADD COLUMN ${columnName} ${columnSql}`,
       ).run();
+    }
+  }
+
+  function migrateLegacyDatabaseAssets() {
+    const legacyAssetsRoot = resolve(databaseRoot, "assets");
+    const targetAssetsRoot = resolve(assetsRoot);
+    if (legacyAssetsRoot === targetAssetsRoot) return;
+
+    const rows = db
+      .prepare("SELECT id, file_path FROM assets WHERE source != 'managed-file'")
+      .all() as Array<{ id: string; file_path: string }>;
+    const migrated: Array<{
+      id: string;
+      legacyPath: string;
+      targetPath: string;
+    }> = [];
+
+    for (const row of rows) {
+      try {
+        const legacyPath = resolve(row.file_path);
+        const relativePath = relative(legacyAssetsRoot, legacyPath);
+        if (
+          !relativePath ||
+          relativePath.startsWith("..") ||
+          resolve(legacyAssetsRoot, relativePath) !== legacyPath
+        ) {
+          continue;
+        }
+
+        const targetPath = resolve(targetAssetsRoot, relativePath);
+        let legacySize = fileSize(legacyPath);
+        let targetSize = fileSize(targetPath);
+        if (legacySize !== null && targetSize === null) {
+          mkdirSync(dirname(targetPath), { recursive: true });
+          try {
+            copyFileSync(legacyPath, targetPath, fsConstants.COPYFILE_EXCL);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+          }
+          targetSize = fileSize(targetPath);
+        }
+
+        if (targetSize === null) continue;
+        legacySize = fileSize(legacyPath);
+        if (legacySize !== null && legacySize !== targetSize) {
+          console.warn(
+            `[asset-migration] Skipping conflicting target for asset ${row.id}`,
+          );
+          continue;
+        }
+        migrated.push({ id: row.id, legacyPath, targetPath });
+      } catch (error) {
+        console.warn(
+          `[asset-migration] Could not migrate asset ${row.id}`,
+          error,
+        );
+      }
+    }
+
+    if (migrated.length === 0) return;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const update = db.prepare("UPDATE assets SET file_path = ? WHERE id = ?");
+      for (const item of migrated) update.run(item.targetPath, item.id);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+
+    for (const item of migrated) {
+      if (!existsSync(item.legacyPath)) continue;
+      try {
+        unlinkSync(item.legacyPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          console.warn(
+            `[asset-migration] Could not remove legacy asset ${item.legacyPath}`,
+          );
+        }
+      }
+    }
+  }
+
+  function fileSize(filePath: string): number | null {
+    try {
+      return statSync(filePath).size;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
     }
   }
 
@@ -3949,8 +4042,8 @@ export function createLocalStore(options: {
 
   function resolveExistingAssetFilePath(row: AssetRow): string | null {
     if (existsSync(row.file_path)) return row.file_path;
-    // Heal legacy FabricFS (.tsh / dataRoot) paths after private assets moved
-    // under databaseRoot. object_path is like "project/<id>.webp".
+    // Heal legacy databaseRoot asset paths after files move under dataRoot.
+    // object_path is like "project/<id>.webp".
     const slash = row.object_path.indexOf("/");
     if (slash <= 0) return null;
     const scope = row.object_path.slice(0, slash);
