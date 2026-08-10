@@ -159,4 +159,45 @@ describe("AgnesImageProvider", () => {
       vi.useRealTimers();
     }
   });
+
+  it("preserves Agnes validation details and does not retry request 400s", async () => {
+    const provider = new AgnesImageProvider("agnes-test-key");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = Object.assign(
+      new Error("Agnes image request failed with HTTP 400."),
+      {
+        name: "AgnesCliError",
+        code: "AGNES_REQUEST_FAILED",
+        details: { error: { message: "extra_body.image must be an array" } },
+      },
+    );
+    imageGenerateMock.mockRejectedValueOnce(error);
+
+    try {
+      await expect(
+        provider.generate({
+          prompt: "Edit this image",
+          model: "agnes-image/agnes-image-2.1-flash",
+          aspectRatio: "1:1",
+          inputImages: ["data:image/png;base64,AAAA"],
+        }),
+      ).rejects.toMatchObject({
+        code: "invalid_input",
+        message: "Agnes image request failed with HTTP 400.",
+        provider: "agnes-image",
+      });
+      expect(warn).toHaveBeenCalledWith(
+        "[agnes-image] Agnes request failed",
+        {
+          code: "AGNES_REQUEST_FAILED",
+          status: 400,
+          details: {
+            error: { message: "extra_body.image must be an array" },
+          },
+        },
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

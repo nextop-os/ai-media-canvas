@@ -76,6 +76,16 @@ function getSingleAgnesInputImage(inputImages: string[]) {
   );
 }
 
+type AgnesRequestError = Error & {
+  code?: unknown;
+  details?: unknown;
+};
+
+function getAgnesRequestStatus(error: AgnesRequestError) {
+  const match = error.message.match(/\bHTTP\s+(\d{3})\b/i);
+  return match?.[1] ? Number.parseInt(match[1], 10) : undefined;
+}
+
 export class AgnesImageProvider implements ImageProvider {
   readonly name = "agnes-image";
   readonly models = AGNES_IMAGE_MODELS;
@@ -148,6 +158,22 @@ export class AgnesImageProvider implements ImageProvider {
       };
     } catch (error) {
       if (error instanceof GenerationError) throw error;
+      if (error instanceof Error && error.name === "AgnesCliError") {
+        const agnesError = error as AgnesRequestError;
+        const status = getAgnesRequestStatus(agnesError);
+        console.warn("[agnes-image] Agnes request failed", {
+          code: agnesError.code,
+          status,
+          details: agnesError.details,
+        });
+        if (status === 400 || status === 413 || status === 422) {
+          throw new GenerationError(
+            this.name,
+            "invalid_input",
+            agnesError.message,
+          );
+        }
+      }
       throw new GenerationError(
         this.name,
         "api_error",
