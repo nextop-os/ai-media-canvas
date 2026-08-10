@@ -25,6 +25,7 @@ export const runStatusSchema = z.enum([
 export const imageAttachmentSchema = z.object({
   assetId: z.string().min(1),
   url: z.string().url(),
+  inputImageRef: z.string().min(1).optional(),
   mimeType: z.string().min(1),
   name: z.string().min(1).optional(),
 });

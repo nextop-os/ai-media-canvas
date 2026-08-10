@@ -194,7 +194,7 @@ function buildVideoGenerateSchema(models: AvailableVideoModel[]) {
       .max(maxInputImages)
       .optional()
       .describe(
-        "Image inputs for image-to-video. For exactly one image, omit videoMode. A reference image does not imply videoMode=reference. AIMC canvas sessions also resolve /local-assets/:assetId inputs.",
+        "Image inputs for image-to-video. When reusing generate_image output, pass its inputImageRef unchanged. Accepted values are /local-assets/{assetId}, http(s) URLs, or data URIs. Never pass elementId, fileId, or a bare assetId, and never construct a local-assets path from elementId. For exactly one image, omit videoMode. A reference image does not imply videoMode=reference.",
       ),
     inputVideo: z
       .string()

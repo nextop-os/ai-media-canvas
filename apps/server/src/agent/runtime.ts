@@ -247,10 +247,13 @@ function buildInputImagesXml(
         ? ` name="${escapeXmlAttribute(attachment.name)}"`
         : "";
       const metadata = attachmentMetadata?.[attachment.assetId];
+      const inputRefAttr = attachment.inputImageRef
+        ? ` input_ref="${escapeXmlAttribute(attachment.inputImageRef)}"`
+        : "";
       const metadataAttrs = metadata
         ? ` width="${metadata.width}" height="${metadata.height}" orientation="${metadata.orientation}"`
         : "";
-      return `<image index="${i + 1}" asset_id="${escapeXmlAttribute(attachment.assetId)}" mime_type="${escapeXmlAttribute(attachment.mimeType)}"${nameAttr}${metadataAttrs} />`;
+      return `<image index="${i + 1}" asset_id="${escapeXmlAttribute(attachment.assetId)}"${inputRefAttr} mime_type="${escapeXmlAttribute(attachment.mimeType)}"${nameAttr}${metadataAttrs} />`;
     })
     .join("\n  ");
 

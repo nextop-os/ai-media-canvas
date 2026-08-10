@@ -12,9 +12,9 @@ import {
 } from "../../generation/providers/registry.js";
 import type { CanvasLayoutInspectionState } from "./inspect-canvas.js";
 import {
+  type MediaCapabilityRequired,
   buildMediaCapabilityRequired,
   isUnavailableMediaGenerationError,
-  type MediaCapabilityRequired,
 } from "./media-capability.js";
 import {
   collectStringEnumValues,
@@ -41,7 +41,10 @@ function buildImageGenerateSchema(models: AvailableModel[]) {
     ? "1:1"
     : (aspectRatioValues[0] ?? "1:1");
 
-  const modelField = z.string().default(defaultModel).describe(modelDescription);
+  const modelField = z
+    .string()
+    .default(defaultModel)
+    .describe(modelDescription);
 
   return z.object({
     title: z
@@ -92,7 +95,7 @@ function buildImageGenerateSchema(models: AvailableModel[]) {
       .array(z.string())
       .optional()
       .describe(
-        "Reference image URLs for editing/transformation. Only use models whose schema supports inputImages; respect each selected model's limits.",
+        "Reference images for editing/transformation. When reusing a generated image, pass its inputImageRef unchanged. Accepted values are /local-assets/{assetId}, http(s) URLs, or data URIs. Never pass elementId, fileId, or a bare assetId. Only use models whose schema supports inputImages; respect each selected model's limits.",
       ),
     size: z
       .string()
@@ -162,6 +165,8 @@ type ImageGenerateResult = {
   title?: string;
   elementId?: string;
   assetId?: string;
+  /** Stable value to pass unchanged to a later generation tool's inputImages. */
+  inputImageRef?: string;
   imageUrl?: string;
   mimeType?: string;
   width?: number;
@@ -190,6 +195,10 @@ export type PersistImageFn = (
   mimeType: string,
   prompt: string,
 ) => Promise<string>;
+
+export type ResolveImageInputFn = (
+  input: string,
+) => Promise<string | undefined>;
 
 /**
  * Submit an image generation job and wait for the final image result.
@@ -225,6 +234,7 @@ export async function runImageGenerate(
   persistImage?: PersistImageFn,
   submitImageJob?: SubmitImageJobFn,
   attachmentMap?: Record<string, string>,
+  resolveInputImage?: ResolveImageInputFn,
 ): Promise<ImageGenerateResult> {
   const promptText =
     typeof input.prompt === "string" && input.prompt.trim().length > 0
@@ -266,6 +276,26 @@ export async function runImageGenerate(
         (ref) => attachmentMap[ref] ?? ref,
       ),
     };
+  }
+
+  if (effectiveInput.inputImages?.length && resolveInputImage) {
+    try {
+      const resolvedImages = await Promise.all(
+        effectiveInput.inputImages.map((image) => resolveInputImage(image)),
+      );
+      effectiveInput = {
+        ...effectiveInput,
+        inputImages: resolvedImages.filter(
+          (image): image is string => typeof image === "string",
+        ),
+      };
+    } catch {
+      return {
+        summary:
+          "Image generation failed: One or more requested image inputs could not be resolved.",
+        error: "One or more requested image inputs could not be resolved.",
+      };
+    }
   }
 
   // Filter out invalid image references — only keep valid URLs.
@@ -378,6 +408,9 @@ export async function runImageGenerate(
           ? { elementId: jobResult.elementId }
           : {}),
         ...(jobResult.assetId != null ? { assetId: jobResult.assetId } : {}),
+        ...(jobResult.assetId != null
+          ? { inputImageRef: `/local-assets/${jobResult.assetId}` }
+          : {}),
         imageUrl: jobResult.imageUrl ?? "",
         mimeType: jobResult.mimeType ?? "image/png",
         ...(jobResult.width != null ? { width: jobResult.width } : {}),
@@ -474,6 +507,7 @@ export async function runImageGenerate(
       summary: `Generated image (${result.width}x${result.height}) via ${effectiveInput.model}`,
       title: effectiveInput.title,
       imageUrl,
+      inputImageRef: imageUrl,
       mimeType: result.mimeType,
       width: result.width,
       height: result.height,
@@ -512,6 +546,7 @@ export async function runImageGenerate(
 export function createImageGenerateTool(deps?: {
   persistImage?: PersistImageFn;
   submitImageJob?: SubmitImageJobFn;
+  resolveInputImage?: ResolveImageInputFn;
   layoutInspectionState?: CanvasLayoutInspectionState;
   /** Override for testing — defaults to querying the provider registry. */
   availableModels?: AvailableModel[];
@@ -536,6 +571,7 @@ export function createImageGenerateTool(deps?: {
         deps?.persistImage,
         deps?.submitImageJob,
         attachmentMap,
+        deps?.resolveInputImage,
       );
       if (!result.error && deps?.layoutInspectionState) {
         deps.layoutInspectionState.canvasId = undefined;

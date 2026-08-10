@@ -17,6 +17,7 @@ import type { LocalAgentProviderPlugin } from "@tutti-os/agent-acp-kit";
 import {
   createLocalAgentRunDirectory,
   createLocalAgentRuntimeProvider,
+  persistentLocalAssetRef,
 } from "./local-agent.js";
 import type { RuntimeExecutionContext } from "./types.js";
 
@@ -203,9 +204,77 @@ function expectOrdinaryEnvOmitsToolToken(env?: Record<string, string>) {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe("createLocalAgentRuntimeProvider", () => {
+  it("normalizes browser-facing local asset URLs to persistent refs", () => {
+    expect(
+      persistentLocalAssetRef(
+        "http://workspace.tsh-app.localhost:61836/local-assets/asset-1?cache=1",
+      ),
+    ).toBe("/local-assets/asset-1");
+    expect(persistentLocalAssetRef("/local-assets/asset-2")).toBe(
+      "/local-assets/asset-2",
+    );
+    expect(persistentLocalAssetRef("https://example.com/image.png")).toBe(
+      undefined,
+    );
+  });
+
+  it("passes selected local assets to the tool gateway without refetching their browser URL", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const createSession = vi.fn(() => ({ token: "tool-token" }));
+    const buildAttachmentDataMap = vi.fn(() => ({}));
+    const provider = createLocalAgentRuntimeProvider(
+      {
+        buildAttachmentDataMap,
+        buildUserMessage: vi.fn((prompt) => ({ text: prompt })),
+        createRunDirectory: vi.fn(async () => "/tmp/aimc-local-agent-run"),
+        loadCanvasSummaryForRuntime: vi.fn(async () => null),
+        localAgentRuntime: {
+          run: vi.fn(async function* () {
+            yield {
+              type: "done" as const,
+              status: "completed" as const,
+              reason: "completed" as const,
+              exitCode: 0,
+            };
+          }),
+        },
+        now: () => "2026-06-17T00:00:00.000Z",
+        toolGateway: {
+          createSession,
+          revokeSession: vi.fn(),
+        } as never,
+        toolGatewayBaseUrl: "http://127.0.0.1:3001/api/local-tools",
+      },
+      createProviderPlugin("codex"),
+    );
+    const context = createRuntimeContext({
+      attachments: [
+        {
+          assetId: "asset-1",
+          url: "http://workspace.tsh-app.localhost:61836/local-assets/asset-1",
+          inputImageRef: "/local-assets/asset-1",
+          mimeType: "image/png",
+        },
+      ],
+    });
+
+    await collect(provider.streamRun(context));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(buildAttachmentDataMap).toHaveBeenCalledWith([]);
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentDataMap: {
+          "asset-1": "/local-assets/asset-1",
+        },
+      }),
+    );
+  });
   it("keeps regular local-agent run directories off durable app data", async () => {
     const tempRoot = mkdtempSync(join(tmpdir(), "aimc-local-agent-runs-"));
     try {
@@ -216,7 +285,9 @@ describe("createLocalAgentRuntimeProvider", () => {
       });
 
       expect(result.ephemeral).toBe(true);
-      expect(result.path).toContain(join(tmpdir(), "aimc-local-agent-codex-run-"));
+      expect(result.path).toContain(
+        join(tmpdir(), "aimc-local-agent-codex-run-"),
+      );
       expect(result.path).not.toContain(join(tempRoot, "app-data"));
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -476,7 +547,9 @@ describe("createLocalAgentRuntimeProvider", () => {
     }
 
     const params = localAgentRuntimeRun.mock.calls[0]?.[0];
-    expect(params?.cwd).toContain(join(tmpdir(), "aimc-local-agent-codex-run-"));
+    expect(params?.cwd).toContain(
+      join(tmpdir(), "aimc-local-agent-codex-run-"),
+    );
     expect(params?.cwd).not.toContain(tempRoot);
     expect(params).toMatchObject({
       mcpServers: [
@@ -533,7 +606,9 @@ describe("createLocalAgentRuntimeProvider", () => {
     }
 
     const params = localAgentRuntimeRun.mock.calls[0]?.[0];
-    expect(params?.cwd).toContain(join(tmpdir(), "aimc-local-agent-codex-run-"));
+    expect(params?.cwd).toContain(
+      join(tmpdir(), "aimc-local-agent-codex-run-"),
+    );
     expect(params?.cwd).not.toContain(tempRoot);
     expect(params).not.toHaveProperty("managedAgentInvocation");
     expect(params).not.toHaveProperty("env");

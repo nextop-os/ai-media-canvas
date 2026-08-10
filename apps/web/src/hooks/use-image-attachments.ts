@@ -13,6 +13,7 @@ export type ImageAttachmentState = {
   error?: string;
   assetId?: string;
   url?: string;
+  inputImageRef?: string;
   mimeType: string;
   source: "upload" | "canvas-ref";
   name?: string;
@@ -29,6 +30,8 @@ export type CanvasImageRef = {
 export type ReadyAttachment = {
   assetId: string;
   url: string;
+  /** Stable reference for downstream media generation tools. */
+  inputImageRef?: string;
   mimeType: string;
   source: "upload" | "canvas-ref";
   name?: string;
@@ -154,6 +157,7 @@ export function useImageAttachments(projectId?: string) {
         uploading: false,
         assetId: ref.assetId,
         url,
+        inputImageRef: `/local-assets/${ref.assetId}`,
         mimeType: ref.mimeType,
         source: "canvas-ref",
         ...(ref.name ? { name: ref.name } : {}),
@@ -242,6 +246,7 @@ export function useImageAttachments(projectId?: string) {
       mimeType: a.mimeType,
       source: a.source,
       ...(a.name ? { name: a.name } : {}),
+      ...(a.inputImageRef ? { inputImageRef: a.inputImageRef } : {}),
     }));
 
   return {

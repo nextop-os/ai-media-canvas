@@ -36,7 +36,11 @@ import {
   type GenerationJobType,
   generationJobService,
 } from "../lib/generation-job-service";
-import { toRuntimeAssetUrl } from "../lib/local-assets";
+import {
+  extractLocalAssetId,
+  toPersistentLocalAssetUrl,
+  toRuntimeAssetUrl,
+} from "../lib/local-assets";
 import {
   fetchImageModels,
   fetchRunEvents,
@@ -830,13 +834,24 @@ export function ChatSidebar({
             .flatMap((el) => {
               const url = resolveSelectedCanvasImageUrl(el);
               if (!url) return [];
+              const persistedAssetId = extractLocalAssetId(
+                el.storageUrl ?? url,
+              );
               return [
                 {
-                  assetId: el.id,
+                  // Use the stored media ID when available. The element ID is
+                  // only a canvas locator and must not masquerade as assetId.
+                  assetId: persistedAssetId ?? el.id,
                   url,
                   mimeType: "image/png",
                   source: "canvas-ref" as const,
                   name: `Canvas selection ${el.id.slice(0, 6)}`,
+                  ...(persistedAssetId
+                    ? {
+                        inputImageRef:
+                          toPersistentLocalAssetUrl(persistedAssetId),
+                      }
+                    : {}),
                 },
               ];
             });

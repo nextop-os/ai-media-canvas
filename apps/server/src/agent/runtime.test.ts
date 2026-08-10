@@ -117,6 +117,21 @@ describe("createAgentRunService", () => {
     );
   });
 
+  it("exposes a selected image input_ref without requiring the model to infer it", () => {
+    const message = buildUserMessage("生成视频", [
+      {
+        assetId: "asset-1",
+        url: "http://127.0.0.1:3001/local-assets/asset-1",
+        inputImageRef: "/local-assets/asset-1",
+        mimeType: "image/png",
+      },
+    ]);
+
+    expect(message.text).toContain(
+      'asset_id="asset-1" input_ref="/local-assets/asset-1"',
+    );
+  });
+
   it("rejects the removed server-deepagent runtime", () => {
     const runs = createAgentRunService({
       env: {
