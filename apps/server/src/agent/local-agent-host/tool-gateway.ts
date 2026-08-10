@@ -576,6 +576,9 @@ export function createLocalToolGatewayService(
       createImageGenerateTool({
         layoutInspectionState,
         codexImagegenConfirmationRequired: needsCodexImagegenNotice(session),
+        ...(resolveVideoInputImage
+          ? { resolveInputImage: resolveVideoInputImage }
+          : {}),
         ...(persistSessionImage ? { persistImage: persistSessionImage } : {}),
         ...(session.submitImageJob
           ? { submitImageJob: session.submitImageJob }

@@ -101,6 +101,20 @@ function joinPromptParts(...parts: Array<string | undefined>) {
     .join("\n\n");
 }
 
+export function persistentLocalAssetRef(value: string | undefined) {
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(value, "http://localhost");
+    if (!parsed.pathname.startsWith("/local-assets/")) return undefined;
+    const assetId = parsed.pathname
+      .slice("/local-assets/".length)
+      .split("/")[0];
+    return assetId ? `/local-assets/${assetId}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 type AgentTimingDiagnostic = {
   kind: "timing";
   phase: "prepare" | "run";
@@ -202,7 +216,8 @@ export function createLocalAgentRuntimeProvider(
         agent_target_id: effectiveAgentTargetId,
       });
       const canvasSummaryStartedAt = Date.now();
-      const canvasSummary = await deps.loadCanvasSummaryForRuntime(readyContext);
+      const canvasSummary =
+        await deps.loadCanvasSummaryForRuntime(readyContext);
       rlog.info("agent_prepare_stage_done", {
         stage: "canvas_summary",
         elapsed_ms: Date.now() - canvasSummaryStartedAt,
@@ -218,10 +233,22 @@ export function createLocalAgentRuntimeProvider(
           base64: string;
           mimeType: string;
         }> = [];
+        const stableAttachmentRefs: Record<string, string> = {};
 
         await Promise.all(
           run.attachments.map(async (attachment) => {
             try {
+              const stableRef =
+                persistentLocalAssetRef(attachment.inputImageRef) ??
+                persistentLocalAssetRef(attachment.url);
+              if (stableRef) {
+                // Local assets are already available to AIMC. Keep their
+                // persistent reference instead of fetching a browser-facing
+                // preview URL that may not be reachable from the VM runtime.
+                stableAttachmentRefs[attachment.assetId] = stableRef;
+                return;
+              }
+
               const dataUriMatch = attachment.url.match(
                 /^data:([^;]+);base64,(.+)$/,
               );
@@ -255,7 +282,10 @@ export function createLocalAgentRuntimeProvider(
           }),
         );
 
-        attachmentDataMap = deps.buildAttachmentDataMap(downloaded);
+        attachmentDataMap = {
+          ...deps.buildAttachmentDataMap(downloaded),
+          ...stableAttachmentRefs,
+        };
       }
       rlog.info("agent_prepare_stage_done", {
         stage: "attachments",
@@ -322,9 +352,7 @@ export function createLocalAgentRuntimeProvider(
             ...(runtimeEnv.appDataDir
               ? { appDataDir: runtimeEnv.appDataDir }
               : {}),
-            ...(projectWorkspaceRoot
-              ? { projectWorkspaceRoot }
-              : {}),
+            ...(projectWorkspaceRoot ? { projectWorkspaceRoot } : {}),
             runId: run.runId,
             runtimeProvider,
           });
@@ -592,8 +620,7 @@ export function createLocalAgentRuntimeProvider(
             const startedAt = toolStartedAt.get(event.id);
             rlog.info("agent_tool_done", {
               tool_name: event.name ?? "unknown",
-              status:
-                event.status ?? (event.isError ? "failed" : "completed"),
+              status: event.status ?? (event.isError ? "failed" : "completed"),
               ...(startedAt ? { elapsed_ms: Date.now() - startedAt } : {}),
             });
             toolStartedAt.delete(event.id);
