@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { streamEventSchema } from "./events.js";
 import { runCreateRequestSchema } from "./contracts.js";
+import { streamEventSchema } from "./events.js";
 
 // --- Server → Client: Push Event (replaces SSE) ---
 
@@ -26,7 +26,16 @@ export const wsRpcRequestSchema = z.object({
 export const wsCommandAckSchema = z.object({
   type: z.literal("command.ack"),
   action: z.string().min(1),
+  requestId: z.string().min(1).optional(),
   payload: z.record(z.unknown()),
+});
+
+export const wsCommandErrorSchema = z.object({
+  type: z.literal("command.error"),
+  action: z.string().min(1),
+  requestId: z.string().min(1).optional(),
+  code: z.string().min(1),
+  message: z.string().min(1),
 });
 
 // --- Client → Server: Command ---
@@ -87,6 +96,7 @@ export const wsServerMessageSchema = z.discriminatedUnion("type", [
   wsServerEventSchema,
   wsRpcRequestSchema,
   wsCommandAckSchema,
+  wsCommandErrorSchema,
 ]);
 
 // --- Type exports ---
@@ -94,6 +104,7 @@ export const wsServerMessageSchema = z.discriminatedUnion("type", [
 export type WsServerEvent = z.infer<typeof wsServerEventSchema>;
 export type WsRpcRequest = z.infer<typeof wsRpcRequestSchema>;
 export type WsCommandAck = z.infer<typeof wsCommandAckSchema>;
+export type WsCommandError = z.infer<typeof wsCommandErrorSchema>;
 export type WsRunCommand = z.infer<typeof wsRunCommandSchema>;
 export type WsCancelCommand = z.infer<typeof wsCancelCommandSchema>;
 export type WsResumeCommand = z.infer<typeof wsResumeCommandSchema>;

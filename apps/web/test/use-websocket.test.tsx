@@ -95,22 +95,22 @@ describe("useWebSocket", () => {
       );
     });
 
-    expect(socket.sent).toContain(
-      JSON.stringify({
-        type: "command",
-        action: "agent.run",
-        payload: {
-          sessionId: "session-1",
-          conversationId: "canvas-1",
-          prompt: "hello",
-        },
-      }),
-    );
+    expect(JSON.parse(socket.sent[0] ?? "{}")).toEqual({
+      type: "command",
+      action: "agent.run",
+      payload: {
+        clientRequestId: "run-fixed",
+        sessionId: "session-1",
+        conversationId: "canvas-1",
+        prompt: "hello",
+      },
+    });
 
     act(() => {
       socket.receive({
         type: "command.ack",
         action: "agent.run",
+        requestId: "run-fixed",
         payload: {
           conversationId: "canvas-1",
           runId: "run-fixed",
@@ -151,6 +151,83 @@ describe("useWebSocket", () => {
         }),
       ]),
     );
+  });
+
+  it("correlates concurrent run acknowledgements and ignores late responses after cleanup", async () => {
+    const { result } = renderHook(() => useWebSocket());
+    const socket = MockWebSocket.instances[0];
+    act(() => socket.open());
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    const acknowledgements: string[] = [];
+    let cleanupFirst = () => {};
+    act(() => {
+      cleanupFirst = result.current.startRun(
+        {
+          clientRequestId: "request-a",
+          sessionId: "session-1",
+          conversationId: "canvas-1",
+          prompt: "first",
+        },
+        () => acknowledgements.push("a"),
+      );
+      result.current.startRun(
+        {
+          clientRequestId: "request-b",
+          sessionId: "session-1",
+          conversationId: "canvas-1",
+          prompt: "second",
+        },
+        () => acknowledgements.push("b"),
+      );
+    });
+
+    act(() => {
+      socket.receive({
+        type: "command.ack",
+        action: "agent.run",
+        requestId: "request-b",
+        payload: { runId: "request-b" },
+      });
+      cleanupFirst();
+      socket.receive({
+        type: "command.ack",
+        action: "agent.run",
+        requestId: "request-a",
+        payload: { runId: "request-a" },
+      });
+    });
+
+    expect(acknowledgements).toEqual(["b"]);
+  });
+
+  it("settles pending run commands when the connection closes before acknowledgement", async () => {
+    const { result } = renderHook(() => useWebSocket());
+    const socket = MockWebSocket.instances[0];
+    act(() => socket.open());
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    const errors: Array<{ code: string; requestId?: string }> = [];
+    act(() => {
+      result.current.startRun(
+        {
+          clientRequestId: "request-disconnected",
+          sessionId: "session-1",
+          conversationId: "canvas-1",
+          prompt: "hello",
+        },
+        undefined,
+        (error) => errors.push(error),
+      );
+      socket.close();
+    });
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "acceptance_status_unknown",
+        requestId: "request-disconnected",
+      }),
+    ]);
   });
 
   it("resumes canvases from the latest consumed sequence instead of the ack watermark", async () => {

@@ -6,6 +6,7 @@ import type {
   RunCreateRequest,
   StreamEvent,
   WsCommandAck,
+  WsCommandError,
   WsRpcRequest,
 } from "@aimc/shared";
 import { wsRpcRequestSchema, wsServerMessageSchema } from "@aimc/shared";
@@ -25,13 +26,15 @@ type RPCHandler = (
 
 const LOCAL_AGENT_ACCESS_TOKEN = "standalone-local-access-token";
 const RECONNECT_DELAY_MS = 1_000;
+const RUN_ACCEPT_ACK_TIMEOUT_MS = 60_000;
 
 export type WebSocketHandle = {
   connected: boolean;
   startRun: (
     payload: RunCreateRequest,
     onAck?: (ack: WsCommandAck) => void,
-  ) => void;
+    onError?: (error: WsCommandError) => void,
+  ) => () => void;
   cancelRun: (runId: string) => void;
   onEvent: (cb: EventCallback) => () => void;
   registerRPC: (method: string, handler: RPCHandler) => () => void;
@@ -70,6 +73,16 @@ export function useWebSocket(): WebSocketHandle {
   const ackListeners = useRef<Map<string, Array<(ack: WsCommandAck) => void>>>(
     new Map(),
   );
+  const pendingRunCommands = useRef<
+    Map<
+      string,
+      {
+        onAck?: (ack: WsCommandAck) => void;
+        onError?: (error: WsCommandError) => void;
+        timeoutId: number;
+      }
+    >
+  >(new Map());
 
   const emitEvent = useCallback((event: StreamEventEnvelope) => {
     for (const listener of eventListeners.current) {
@@ -78,6 +91,19 @@ export function useWebSocket(): WebSocketHandle {
   }, []);
 
   const resolveAck = useCallback((ack: WsCommandAck) => {
+    if (ack.action === "agent.run") {
+      const payloadRunId = ack.payload.runId;
+      const requestId =
+        ack.requestId ??
+        (typeof payloadRunId === "string" ? payloadRunId : undefined);
+      if (!requestId) return;
+      const pending = pendingRunCommands.current.get(requestId);
+      if (!pending) return;
+      pendingRunCommands.current.delete(requestId);
+      window.clearTimeout(pending.timeoutId);
+      pending.onAck?.(ack);
+      return;
+    }
     const listeners = ackListeners.current.get(ack.action);
     const handler = listeners?.shift();
     if (!handler) {
@@ -88,6 +114,33 @@ export function useWebSocket(): WebSocketHandle {
     }
     handler(ack);
   }, []);
+
+  const resolveCommandError = useCallback((error: WsCommandError) => {
+    if (error.action !== "agent.run" || !error.requestId) return;
+    const pending = pendingRunCommands.current.get(error.requestId);
+    if (!pending) return;
+    pendingRunCommands.current.delete(error.requestId);
+    window.clearTimeout(pending.timeoutId);
+    pending.onError?.(error);
+  }, []);
+
+  const settlePendingRuns = useCallback(
+    (code: string, message: string) => {
+      const pendingEntries = [...pendingRunCommands.current.entries()];
+      pendingRunCommands.current.clear();
+      for (const [requestId, pending] of pendingEntries) {
+        window.clearTimeout(pending.timeoutId);
+        pending.onError?.({
+          type: "command.error",
+          action: "agent.run",
+          requestId,
+          code,
+          message,
+        });
+      }
+    },
+    [],
+  );
 
   const sendJson = useCallback((message: Record<string, unknown>) => {
     const socket = socketRef.current;
@@ -229,10 +282,19 @@ export function useWebSocket(): WebSocketHandle {
             }
           }
           resolveAck(serverMessage.data);
+          return;
+        }
+
+        if (serverMessage.data.type === "command.error") {
+          resolveCommandError(serverMessage.data);
         }
       });
 
       socket.addEventListener("close", () => {
+        settlePendingRuns(
+          "acceptance_status_unknown",
+          "Connection closed before the server confirmed run acceptance.",
+        );
         if (socketRef.current === socket) {
           socketRef.current = null;
           setConnected(false);
@@ -261,10 +323,14 @@ export function useWebSocket(): WebSocketHandle {
       }
       const socket = socketRef.current;
       socketRef.current = null;
+      settlePendingRuns(
+        "client_disposed",
+        "The client closed before the server confirmed run acceptance.",
+      );
       socket?.close();
       setConnected(false);
     };
-  }, [emitEvent, handleRpcRequest, resolveAck]);
+  }, [emitEvent, handleRpcRequest, resolveAck, resolveCommandError, settlePendingRuns]);
 
   const onEvent = useCallback((cb: EventCallback) => {
     eventListeners.current.add(cb);
@@ -306,23 +372,62 @@ export function useWebSocket(): WebSocketHandle {
   );
 
   const startRun = useCallback(
-    (payload: RunCreateRequest, onAck?: (ack: WsCommandAck) => void) => {
+    (
+      payload: RunCreateRequest,
+      onAck?: (ack: WsCommandAck) => void,
+      onError?: (error: WsCommandError) => void,
+    ) => {
+      const requestId =
+        payload.clientRequestId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `run-request-${Date.now()}`);
       activeCanvasIdRef.current = payload.canvasId ?? payload.conversationId;
-      const removeAck = enqueueAck("agent.run", onAck);
+      const timeoutId = window.setTimeout(() => {
+        const pending = pendingRunCommands.current.get(requestId);
+        if (!pending) return;
+        pendingRunCommands.current.delete(requestId);
+        pending.onError?.({
+          type: "command.error",
+          action: "agent.run",
+          requestId,
+          code: "acceptance_status_unknown",
+          message:
+            "The server did not confirm run acceptance before the acknowledgement deadline.",
+        });
+        // Reconnect with the stable connection/canvas identity so the normal
+        // resume path can recover a run whose acceptance raced this deadline.
+        socketRef.current?.close();
+      }, RUN_ACCEPT_ACK_TIMEOUT_MS);
+      pendingRunCommands.current.set(requestId, {
+        ...(onAck ? { onAck } : {}),
+        ...(onError ? { onError } : {}),
+        timeoutId,
+      });
+      const removePending = () => {
+        const pending = pendingRunCommands.current.get(requestId);
+        if (!pending) return;
+        pendingRunCommands.current.delete(requestId);
+        window.clearTimeout(pending.timeoutId);
+      };
       const sent = sendJson({
         type: "command",
         action: "agent.run",
-        payload,
+        payload: { ...payload, clientRequestId: requestId },
       });
       if (!sent) {
-        removeAck();
+        removePending();
+        onError?.({
+          type: "command.error",
+          action: "agent.run",
+          requestId,
+          code: "connection_not_ready",
+          message: "WebSocket connection is not ready.",
+        });
         emitEvent({
           event: {
             type: "run.failed",
-            runId:
-              typeof crypto !== "undefined" && crypto.randomUUID
-                ? crypto.randomUUID()
-                : `run-failed-${Date.now()}`,
+            runId: requestId,
             error: {
               code: "run_failed",
               message: "WebSocket connection is not ready.",
@@ -331,8 +436,9 @@ export function useWebSocket(): WebSocketHandle {
           },
         });
       }
+      return removePending;
     },
-    [emitEvent, enqueueAck, sendJson],
+    [emitEvent, sendJson],
   );
 
   const cancelRun = useCallback(
