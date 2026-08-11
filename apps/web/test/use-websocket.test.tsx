@@ -15,14 +15,14 @@ class MockWebSocket {
   readyState = 0;
   sent: string[] = [];
   url: string;
-  private listeners = new Map<string, Set<(event?: any) => void>>();
+  private listeners = new Map<string, Set<(event?: unknown) => void>>();
 
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
   }
 
-  addEventListener(type: string, listener: (event?: any) => void) {
+  addEventListener(type: string, listener: (event?: unknown) => void) {
     const listeners = this.listeners.get(type) ?? new Set();
     listeners.add(listener);
     this.listeners.set(type, listeners);
@@ -37,7 +37,7 @@ class MockWebSocket {
     this.emit("close");
   }
 
-  emit(type: string, event?: any) {
+  emit(type: string, event?: unknown) {
     const listeners = this.listeners.get(type);
     if (!listeners) {
       return;
@@ -199,6 +199,47 @@ describe("useWebSocket", () => {
     });
 
     expect(acknowledgements).toEqual(["b"]);
+  });
+
+  it("keeps the shared connection open while a run acknowledgement is pending", async () => {
+    const { result } = renderHook(() => useWebSocket());
+    const socket = MockWebSocket.instances[0];
+    act(() => socket.open());
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    vi.useFakeTimers();
+    try {
+      const acknowledgements: string[] = [];
+      const errors: string[] = [];
+      act(() => {
+        result.current.startRun(
+          {
+            clientRequestId: "request-slow",
+            sessionId: "session-1",
+            conversationId: "canvas-1",
+            prompt: "slow preparation",
+          },
+          () => acknowledgements.push("slow"),
+          (error) => errors.push(error.code),
+        );
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(socket.readyState).toBe(MockWebSocket.OPEN);
+      expect(errors).toEqual([]);
+
+      act(() => {
+        socket.receive({
+          type: "command.ack",
+          action: "agent.run",
+          requestId: "request-slow",
+          payload: { runId: "request-slow" },
+        });
+      });
+      expect(acknowledgements).toEqual(["slow"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("settles pending run commands when the connection closes before acknowledgement", async () => {

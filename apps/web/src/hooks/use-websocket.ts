@@ -26,7 +26,6 @@ type RPCHandler = (
 
 const LOCAL_AGENT_ACCESS_TOKEN = "standalone-local-access-token";
 const RECONNECT_DELAY_MS = 1_000;
-const RUN_ACCEPT_ACK_TIMEOUT_MS = 60_000;
 
 export type WebSocketHandle = {
   connected: boolean;
@@ -79,7 +78,6 @@ export function useWebSocket(): WebSocketHandle {
       {
         onAck?: (ack: WsCommandAck) => void;
         onError?: (error: WsCommandError) => void;
-        timeoutId: number;
       }
     >
   >(new Map());
@@ -100,7 +98,6 @@ export function useWebSocket(): WebSocketHandle {
       const pending = pendingRunCommands.current.get(requestId);
       if (!pending) return;
       pendingRunCommands.current.delete(requestId);
-      window.clearTimeout(pending.timeoutId);
       pending.onAck?.(ack);
       return;
     }
@@ -120,27 +117,22 @@ export function useWebSocket(): WebSocketHandle {
     const pending = pendingRunCommands.current.get(error.requestId);
     if (!pending) return;
     pendingRunCommands.current.delete(error.requestId);
-    window.clearTimeout(pending.timeoutId);
     pending.onError?.(error);
   }, []);
 
-  const settlePendingRuns = useCallback(
-    (code: string, message: string) => {
-      const pendingEntries = [...pendingRunCommands.current.entries()];
-      pendingRunCommands.current.clear();
-      for (const [requestId, pending] of pendingEntries) {
-        window.clearTimeout(pending.timeoutId);
-        pending.onError?.({
-          type: "command.error",
-          action: "agent.run",
-          requestId,
-          code,
-          message,
-        });
-      }
-    },
-    [],
-  );
+  const settlePendingRuns = useCallback((code: string, message: string) => {
+    const pendingEntries = [...pendingRunCommands.current.entries()];
+    pendingRunCommands.current.clear();
+    for (const [requestId, pending] of pendingEntries) {
+      pending.onError?.({
+        type: "command.error",
+        action: "agent.run",
+        requestId,
+        code,
+        message,
+      });
+    }
+  }, []);
 
   const sendJson = useCallback((message: Record<string, unknown>) => {
     const socket = socketRef.current;
@@ -174,10 +166,7 @@ export function useWebSocket(): WebSocketHandle {
         sendJson({
           type: "rpc.response",
           id: message.id,
-          error:
-            error instanceof Error
-              ? error.message
-              : "RPC handler failed.",
+          error: error instanceof Error ? error.message : "RPC handler failed.",
         });
       }
     },
@@ -236,7 +225,10 @@ export function useWebSocket(): WebSocketHandle {
 
         if (serverMessage.data.type === "event") {
           const activeCanvasId = activeCanvasIdRef.current;
-          if (activeCanvasId && typeof serverMessage.data.eventId === "string") {
+          if (
+            activeCanvasId &&
+            typeof serverMessage.data.eventId === "string"
+          ) {
             const seenForCanvas =
               seenEventIdsRef.current.get(activeCanvasId) ?? new Set<string>();
             if (seenForCanvas.has(serverMessage.data.eventId)) {
@@ -260,11 +252,9 @@ export function useWebSocket(): WebSocketHandle {
             ...(typeof serverMessage.data.eventId === "string"
               ? { eventId: serverMessage.data.eventId }
               : {}),
-            ...(
-              (serverMessage.data as { replayed?: boolean }).replayed === true
-                ? { replayed: true }
-                : {}
-            ),
+            ...((serverMessage.data as { replayed?: boolean }).replayed === true
+              ? { replayed: true }
+              : {}),
             ...(typeof serverMessage.data.seq === "number"
               ? { seq: serverMessage.data.seq }
               : {}),
@@ -274,7 +264,10 @@ export function useWebSocket(): WebSocketHandle {
 
         if (serverMessage.data.type === "command.ack") {
           if (serverMessage.data.action === "canvas.resume") {
-            const payload = serverMessage.data.payload as Record<string, unknown>;
+            const payload = serverMessage.data.payload as Record<
+              string,
+              unknown
+            >;
             const canvasId =
               typeof payload.canvasId === "string" ? payload.canvasId : null;
             if (canvasId) {
@@ -330,7 +323,13 @@ export function useWebSocket(): WebSocketHandle {
       socket?.close();
       setConnected(false);
     };
-  }, [emitEvent, handleRpcRequest, resolveAck, resolveCommandError, settlePendingRuns]);
+  }, [
+    emitEvent,
+    handleRpcRequest,
+    resolveAck,
+    resolveCommandError,
+    settlePendingRuns,
+  ]);
 
   const onEvent = useCallback((cb: EventCallback) => {
     eventListeners.current.add(cb);
@@ -383,32 +382,14 @@ export function useWebSocket(): WebSocketHandle {
           ? crypto.randomUUID()
           : `run-request-${Date.now()}`);
       activeCanvasIdRef.current = payload.canvasId ?? payload.conversationId;
-      const timeoutId = window.setTimeout(() => {
-        const pending = pendingRunCommands.current.get(requestId);
-        if (!pending) return;
-        pendingRunCommands.current.delete(requestId);
-        pending.onError?.({
-          type: "command.error",
-          action: "agent.run",
-          requestId,
-          code: "acceptance_status_unknown",
-          message:
-            "The server did not confirm run acceptance before the acknowledgement deadline.",
-        });
-        // Reconnect with the stable connection/canvas identity so the normal
-        // resume path can recover a run whose acceptance raced this deadline.
-        socketRef.current?.close();
-      }, RUN_ACCEPT_ACK_TIMEOUT_MS);
       pendingRunCommands.current.set(requestId, {
         ...(onAck ? { onAck } : {}),
         ...(onError ? { onError } : {}),
-        timeoutId,
       });
       const removePending = () => {
         const pending = pendingRunCommands.current.get(requestId);
         if (!pending) return;
         pendingRunCommands.current.delete(requestId);
-        window.clearTimeout(pending.timeoutId);
       };
       const sent = sendJson({
         type: "command",

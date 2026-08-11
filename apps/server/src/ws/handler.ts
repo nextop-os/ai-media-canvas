@@ -686,7 +686,9 @@ export async function resolveRunAgentTargetIdentity(
   defaultModel?: string,
   resolver: typeof resolveAgentTarget = resolveAgentTarget,
 ) {
-  const modelProvider = getLocalAgentModelProvider(payload.model ?? defaultModel);
+  const modelProvider = getLocalAgentModelProvider(
+    payload.model ?? defaultModel,
+  );
   return await resolver({
     ...(payload.agentTargetId ? { agentTargetId: payload.agentTargetId } : {}),
     ...(payload.runtimeProvider

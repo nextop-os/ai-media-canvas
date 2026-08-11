@@ -331,6 +331,7 @@ describe("ChatSidebar", () => {
           canvasId: "canvas-1",
         }),
         expect.any(Function),
+        expect.any(Function),
       ),
     );
     expect(mockWs.startRun).not.toHaveBeenCalledWith(
@@ -338,11 +339,13 @@ describe("ChatSidebar", () => {
         runtimeKind: expect.any(String),
       }),
       expect.anything(),
+      expect.anything(),
     );
     expect(mockWs.startRun).not.toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: "session-canvas-1",
       }),
+      expect.anything(),
       expect.anything(),
     );
   });
@@ -373,6 +376,7 @@ describe("ChatSidebar", () => {
           locale: "en",
           prompt: "expand the tarot card",
         }),
+        expect.any(Function),
         expect.any(Function),
       ),
     );
@@ -507,6 +511,7 @@ describe("ChatSidebar", () => {
           },
         }),
         expect.any(Function),
+        expect.any(Function),
       ),
     );
     expect(mockWs.startRun).not.toHaveBeenCalledWith(
@@ -517,6 +522,7 @@ describe("ChatSidebar", () => {
           ]),
         }),
       }),
+      expect.any(Function),
       expect.any(Function),
     );
   });
@@ -554,6 +560,7 @@ describe("ChatSidebar", () => {
             models: ["gpt-image-2"],
           },
         }),
+        expect.any(Function),
         expect.any(Function),
       ),
     );
@@ -597,6 +604,7 @@ describe("ChatSidebar", () => {
           canvasId: "canvas-1",
           attachments,
         }),
+        expect.any(Function),
         expect.any(Function),
       ),
     );
@@ -645,6 +653,7 @@ describe("ChatSidebar", () => {
           prompt: "preserve order",
         }),
         expect.any(Function),
+        expect.any(Function),
       ),
     );
   });
@@ -676,6 +685,7 @@ describe("ChatSidebar", () => {
           runtimeKind: "local-agent",
           runtimeProvider: "claude",
         }),
+        expect.any(Function),
         expect.any(Function),
       ),
     );
@@ -903,6 +913,7 @@ describe("ChatSidebar", () => {
         prompt: "second run",
       }),
       expect.any(Function),
+      expect.any(Function),
     );
   });
 
@@ -972,6 +983,7 @@ describe("ChatSidebar", () => {
         managedAgentInvocationCredential: expect.any(String),
       }),
       expect.any(Function),
+      expect.any(Function),
     );
   });
 
@@ -1009,6 +1021,7 @@ describe("ChatSidebar", () => {
       expect.not.objectContaining({
         attachments: expect.any(Array),
       }),
+      expect.any(Function),
       expect.any(Function),
     );
   });
@@ -1061,6 +1074,7 @@ describe("ChatSidebar", () => {
           }),
         ],
       }),
+      expect.any(Function),
       expect.any(Function),
     );
   });
