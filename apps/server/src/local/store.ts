@@ -11,7 +11,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
 import type {
@@ -297,8 +297,8 @@ export function createLocalStore(options: {
   const dataRoot =
     options.dataRoot ?? resolve(process.cwd(), "../../local-data");
   const databaseRoot = options.databaseRoot ?? dataRoot;
-  // SQLite state belongs in databaseRoot. User-visible assets must live under
-  // dataRoot so app-data-relative references resolve through the Tutti host.
+  // SQLite state belongs in databaseRoot. User-visible assets remain under
+  // dataRoot for the local asset-serving and migration paths.
   const assetsRoot = join(dataRoot, "assets");
   const uploadsRoot = join(assetsRoot, "uploads");
   const brandKitRoot = join(assetsRoot, "brand-kits");
@@ -4289,20 +4289,6 @@ export function createLocalStore(options: {
     }
   }
 
-  function dataRelativePath(filePath: string): string {
-    return relative(dataRoot, filePath).split("\\").join("/");
-  }
-
-  function assetReferencePath(row: {
-    file_path: string;
-    object_path: string;
-    source?: AssetSource | null;
-  }): string {
-    return row.source === "managed-file"
-      ? row.object_path
-      : dataRelativePath(row.file_path);
-  }
-
   // Root level: one group per active project, in the exact same order as the
   // in-app project list. Projects with no reusable outputs remain navigable
   // empty groups so newly created projects are visible in Tutti.
@@ -4442,7 +4428,10 @@ export function createLocalStore(options: {
     files: Array<{
       id: string;
       displayName: string;
-      relativePath: string;
+      location: {
+        type: "workspace-path" | "app-data-relative";
+        path: string;
+      };
       mimeType: string | null;
       sizeBytes: number | null;
       mtimeMs: number | null;
@@ -4523,7 +4512,9 @@ export function createLocalStore(options: {
           id: row.id,
           displayName:
             row.display_name ?? row.object_path.split("/").at(-1) ?? row.id,
-          relativePath: assetReferencePath(row),
+          location: row.source === "managed-file" && !isAbsolute(row.object_path)
+            ? { type: "app-data-relative" as const, path: row.object_path }
+            : { type: "workspace-path" as const, path: row.file_path },
           mimeType: row.mime_type,
           sizeBytes: row.byte_size,
           mtimeMs: Number.isNaN(mtime) ? null : mtime,
@@ -4553,7 +4544,10 @@ export function createLocalStore(options: {
     files: Array<{
       id: string;
       displayName: string;
-      relativePath: string;
+      location: {
+        type: "workspace-path" | "app-data-relative";
+        path: string;
+      };
       mimeType: string | null;
       sizeBytes: number | null;
       mtimeMs: number | null;
@@ -4681,7 +4675,9 @@ export function createLocalStore(options: {
           id: row.id,
           displayName:
             row.display_name ?? row.object_path.split("/").at(-1) ?? row.id,
-          relativePath: assetReferencePath(row),
+          location: row.source === "managed-file" && !isAbsolute(row.object_path)
+            ? { type: "app-data-relative" as const, path: row.object_path }
+            : { type: "workspace-path" as const, path: row.file_path },
           mimeType: row.mime_type,
           sizeBytes: row.byte_size,
           mtimeMs: Number.isNaN(mtime) ? null : mtime,

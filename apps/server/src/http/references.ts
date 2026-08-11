@@ -118,7 +118,10 @@ type FileReferenceItem = {
   reference: {
     kind: "file";
     displayName: string;
-    location: { type: "app-data-relative"; path: string };
+    location: {
+      type: "workspace-path" | "app-data-relative";
+      path: string;
+    };
     sizeBytes?: number;
     mtimeMs?: number;
     mimeType?: string;
@@ -193,7 +196,7 @@ export async function registerReferenceRoutes(
         reference: {
           kind: "file",
           displayName: file.displayName,
-          location: { type: "app-data-relative", path: file.relativePath },
+          location: file.location,
           ...(file.sizeBytes != null ? { sizeBytes: file.sizeBytes } : {}),
           ...(file.mtimeMs != null ? { mtimeMs: file.mtimeMs } : {}),
           ...(file.mimeType ? { mimeType: file.mimeType } : {}),
@@ -240,7 +243,7 @@ export async function registerReferenceRoutes(
       reference: {
         kind: "file",
         displayName: file.displayName,
-        location: { type: "app-data-relative", path: file.relativePath },
+        location: file.location,
         ...(file.sizeBytes != null ? { sizeBytes: file.sizeBytes } : {}),
         ...(file.mtimeMs != null ? { mtimeMs: file.mtimeMs } : {}),
         ...(file.mimeType ? { mimeType: file.mimeType } : {}),

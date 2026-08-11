@@ -316,7 +316,7 @@ describe("POST /tutti/references/list", () => {
     expect(files.nextCursor).toBeNull();
   });
 
-  it("lists a project's media assets as app-data-relative file references", async () => {
+  it("lists a project's media assets as absolute workspace-path file references", async () => {
     const { dataRoot, project, assetIds } = await seedStore();
     const app = buildApp({ env: { dataRoot } });
 
@@ -334,9 +334,8 @@ describe("POST /tutti/references/list", () => {
         location: { type: string; path: string };
       };
       expect(reference.kind).toBe("file");
-      expect(reference.location.type).toBe("app-data-relative");
-      expect(reference.location.path).toMatch(/^assets\//);
-      expect(reference.location.path).not.toContain("..");
+      expect(reference.location.type).toBe("workspace-path");
+      expect(reference.location.path).toMatch(/^\//);
       // displayName is the file name, which embeds the asset id.
       const assetId = assetIds.find((id) =>
         reference.displayName.startsWith(id),
@@ -670,7 +669,8 @@ describe("POST /tutti/references/search", () => {
         parentGroupLabel?: string;
       };
       expect(reference.kind).toBe("file");
-      expect(reference.location.type).toBe("app-data-relative");
+      expect(reference.location.type).toBe("workspace-path");
+      expect(reference.location.path).toMatch(/^\//);
       expect(reference.parentGroupLabel).toMatch(/^Campaign [AB]$/);
     }
   });
