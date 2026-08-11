@@ -6,6 +6,7 @@ import type {
   RunCreateRequest,
   StreamEvent,
   WsCommandAck,
+  WsCommandError,
   WsRpcRequest,
 } from "@aimc/shared";
 import { wsRpcRequestSchema, wsServerMessageSchema } from "@aimc/shared";
@@ -31,7 +32,8 @@ export type WebSocketHandle = {
   startRun: (
     payload: RunCreateRequest,
     onAck?: (ack: WsCommandAck) => void,
-  ) => void;
+    onError?: (error: WsCommandError) => void,
+  ) => () => void;
   cancelRun: (runId: string) => void;
   onEvent: (cb: EventCallback) => () => void;
   registerRPC: (method: string, handler: RPCHandler) => () => void;
@@ -70,6 +72,15 @@ export function useWebSocket(): WebSocketHandle {
   const ackListeners = useRef<Map<string, Array<(ack: WsCommandAck) => void>>>(
     new Map(),
   );
+  const pendingRunCommands = useRef<
+    Map<
+      string,
+      {
+        onAck?: (ack: WsCommandAck) => void;
+        onError?: (error: WsCommandError) => void;
+      }
+    >
+  >(new Map());
 
   const emitEvent = useCallback((event: StreamEventEnvelope) => {
     for (const listener of eventListeners.current) {
@@ -78,6 +89,18 @@ export function useWebSocket(): WebSocketHandle {
   }, []);
 
   const resolveAck = useCallback((ack: WsCommandAck) => {
+    if (ack.action === "agent.run") {
+      const payloadRunId = ack.payload.runId;
+      const requestId =
+        ack.requestId ??
+        (typeof payloadRunId === "string" ? payloadRunId : undefined);
+      if (!requestId) return;
+      const pending = pendingRunCommands.current.get(requestId);
+      if (!pending) return;
+      pendingRunCommands.current.delete(requestId);
+      pending.onAck?.(ack);
+      return;
+    }
     const listeners = ackListeners.current.get(ack.action);
     const handler = listeners?.shift();
     if (!handler) {
@@ -87,6 +110,28 @@ export function useWebSocket(): WebSocketHandle {
       ackListeners.current.delete(ack.action);
     }
     handler(ack);
+  }, []);
+
+  const resolveCommandError = useCallback((error: WsCommandError) => {
+    if (error.action !== "agent.run" || !error.requestId) return;
+    const pending = pendingRunCommands.current.get(error.requestId);
+    if (!pending) return;
+    pendingRunCommands.current.delete(error.requestId);
+    pending.onError?.(error);
+  }, []);
+
+  const settlePendingRuns = useCallback((code: string, message: string) => {
+    const pendingEntries = [...pendingRunCommands.current.entries()];
+    pendingRunCommands.current.clear();
+    for (const [requestId, pending] of pendingEntries) {
+      pending.onError?.({
+        type: "command.error",
+        action: "agent.run",
+        requestId,
+        code,
+        message,
+      });
+    }
   }, []);
 
   const sendJson = useCallback((message: Record<string, unknown>) => {
@@ -121,10 +166,7 @@ export function useWebSocket(): WebSocketHandle {
         sendJson({
           type: "rpc.response",
           id: message.id,
-          error:
-            error instanceof Error
-              ? error.message
-              : "RPC handler failed.",
+          error: error instanceof Error ? error.message : "RPC handler failed.",
         });
       }
     },
@@ -183,7 +225,10 @@ export function useWebSocket(): WebSocketHandle {
 
         if (serverMessage.data.type === "event") {
           const activeCanvasId = activeCanvasIdRef.current;
-          if (activeCanvasId && typeof serverMessage.data.eventId === "string") {
+          if (
+            activeCanvasId &&
+            typeof serverMessage.data.eventId === "string"
+          ) {
             const seenForCanvas =
               seenEventIdsRef.current.get(activeCanvasId) ?? new Set<string>();
             if (seenForCanvas.has(serverMessage.data.eventId)) {
@@ -207,11 +252,9 @@ export function useWebSocket(): WebSocketHandle {
             ...(typeof serverMessage.data.eventId === "string"
               ? { eventId: serverMessage.data.eventId }
               : {}),
-            ...(
-              (serverMessage.data as { replayed?: boolean }).replayed === true
-                ? { replayed: true }
-                : {}
-            ),
+            ...((serverMessage.data as { replayed?: boolean }).replayed === true
+              ? { replayed: true }
+              : {}),
             ...(typeof serverMessage.data.seq === "number"
               ? { seq: serverMessage.data.seq }
               : {}),
@@ -221,7 +264,10 @@ export function useWebSocket(): WebSocketHandle {
 
         if (serverMessage.data.type === "command.ack") {
           if (serverMessage.data.action === "canvas.resume") {
-            const payload = serverMessage.data.payload as Record<string, unknown>;
+            const payload = serverMessage.data.payload as Record<
+              string,
+              unknown
+            >;
             const canvasId =
               typeof payload.canvasId === "string" ? payload.canvasId : null;
             if (canvasId) {
@@ -229,10 +275,19 @@ export function useWebSocket(): WebSocketHandle {
             }
           }
           resolveAck(serverMessage.data);
+          return;
+        }
+
+        if (serverMessage.data.type === "command.error") {
+          resolveCommandError(serverMessage.data);
         }
       });
 
       socket.addEventListener("close", () => {
+        settlePendingRuns(
+          "acceptance_status_unknown",
+          "Connection closed before the server confirmed run acceptance.",
+        );
         if (socketRef.current === socket) {
           socketRef.current = null;
           setConnected(false);
@@ -261,10 +316,20 @@ export function useWebSocket(): WebSocketHandle {
       }
       const socket = socketRef.current;
       socketRef.current = null;
+      settlePendingRuns(
+        "client_disposed",
+        "The client closed before the server confirmed run acceptance.",
+      );
       socket?.close();
       setConnected(false);
     };
-  }, [emitEvent, handleRpcRequest, resolveAck]);
+  }, [
+    emitEvent,
+    handleRpcRequest,
+    resolveAck,
+    resolveCommandError,
+    settlePendingRuns,
+  ]);
 
   const onEvent = useCallback((cb: EventCallback) => {
     eventListeners.current.add(cb);
@@ -306,23 +371,44 @@ export function useWebSocket(): WebSocketHandle {
   );
 
   const startRun = useCallback(
-    (payload: RunCreateRequest, onAck?: (ack: WsCommandAck) => void) => {
+    (
+      payload: RunCreateRequest,
+      onAck?: (ack: WsCommandAck) => void,
+      onError?: (error: WsCommandError) => void,
+    ) => {
+      const requestId =
+        payload.clientRequestId ??
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `run-request-${Date.now()}`);
       activeCanvasIdRef.current = payload.canvasId ?? payload.conversationId;
-      const removeAck = enqueueAck("agent.run", onAck);
+      pendingRunCommands.current.set(requestId, {
+        ...(onAck ? { onAck } : {}),
+        ...(onError ? { onError } : {}),
+      });
+      const removePending = () => {
+        const pending = pendingRunCommands.current.get(requestId);
+        if (!pending) return;
+        pendingRunCommands.current.delete(requestId);
+      };
       const sent = sendJson({
         type: "command",
         action: "agent.run",
-        payload,
+        payload: { ...payload, clientRequestId: requestId },
       });
       if (!sent) {
-        removeAck();
+        removePending();
+        onError?.({
+          type: "command.error",
+          action: "agent.run",
+          requestId,
+          code: "connection_not_ready",
+          message: "WebSocket connection is not ready.",
+        });
         emitEvent({
           event: {
             type: "run.failed",
-            runId:
-              typeof crypto !== "undefined" && crypto.randomUUID
-                ? crypto.randomUUID()
-                : `run-failed-${Date.now()}`,
+            runId: requestId,
             error: {
               code: "run_failed",
               message: "WebSocket connection is not ready.",
@@ -331,8 +417,9 @@ export function useWebSocket(): WebSocketHandle {
           },
         });
       }
+      return removePending;
     },
-    [emitEvent, enqueueAck, sendJson],
+    [emitEvent, sendJson],
   );
 
   const cancelRun = useCallback(

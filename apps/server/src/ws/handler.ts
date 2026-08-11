@@ -222,38 +222,21 @@ async function authenticateAndBind(
             accessToken: token,
           },
           connectionId,
-          {
-            sessionId: p.sessionId,
-            conversationId: p.conversationId,
-            prompt: p.prompt,
-            ...(p.canvasId !== undefined ? { canvasId: p.canvasId } : {}),
-            ...(p.attachments !== undefined
-              ? { attachments: p.attachments }
-              : {}),
-            ...(p.imageGenerationPreference !== undefined
-              ? { imageGenerationPreference: p.imageGenerationPreference }
-              : {}),
-            ...(p.videoGenerationPreference !== undefined
-              ? { videoGenerationPreference: p.videoGenerationPreference }
-              : {}),
-            ...(p.model !== undefined ? { model: p.model } : {}),
-            ...(p.modelSource !== undefined
-              ? { modelSource: p.modelSource }
-              : {}),
-            ...(p.runtimeKind !== undefined
-              ? { runtimeKind: p.runtimeKind }
-              : {}),
-            ...(p.agentTargetId !== undefined
-              ? { agentTargetId: p.agentTargetId }
-              : {}),
-            ...(p.runtimeProvider !== undefined
-              ? { runtimeProvider: p.runtimeProvider }
-              : {}),
-          },
+          p,
           agentRuns,
           connectionManager,
           options,
-        );
+        ).catch((error) => {
+          sendCommandError(connectionManager, connectionId, {
+            action: "agent.run",
+            requestId: p.clientRequestId,
+            code: "internal_error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Unable to start agent run.",
+          });
+        });
       } else if (msg.action === "agent.cancel") {
         log.info("run_cancel", {
           userId: authenticatedUser.id,
@@ -416,17 +399,7 @@ async function handleRunCommand(
     | { agentTargetId: string; providerId: AgentRuntimeProvider }
     | undefined;
   try {
-    const modelProvider = getLocalAgentModelProvider(payload.model ?? model);
-    resolvedAgentTarget = await resolveAgentTarget({
-      ...(payload.agentTargetId
-        ? { agentTargetId: payload.agentTargetId }
-        : {}),
-      ...(payload.runtimeProvider
-        ? { providerId: payload.runtimeProvider }
-        : !payload.agentTargetId && modelProvider
-          ? { providerId: modelProvider }
-          : {}),
-    });
+    resolvedAgentTarget = await resolveRunAgentTargetIdentity(payload, model);
   } catch (error) {
     const expected = error instanceof AgentTargetResolutionError;
     if (!expected) {
@@ -434,8 +407,9 @@ async function handleRunCommand(
         error: error instanceof Error ? error.message : String(error),
       });
     }
-    connectionManager.sendTo(connectionId, {
-      type: "error",
+    sendCommandError(connectionManager, connectionId, {
+      action: "agent.run",
+      requestId: payload.clientRequestId,
       code: expected ? "agent_target_unavailable" : "internal_error",
       message: expected
         ? error.message
@@ -444,8 +418,9 @@ async function handleRunCommand(
     return;
   }
   if (!resolvedAgentTarget) {
-    connectionManager.sendTo(connectionId, {
-      type: "error",
+    sendCommandError(connectionManager, connectionId, {
+      action: "agent.run",
+      requestId: payload.clientRequestId,
       code: "agent_target_unavailable",
       message: "A local agent target is required.",
     });
@@ -461,8 +436,9 @@ async function handleRunCommand(
     });
   } catch (error) {
     if (error instanceof AgentRunModelResolutionError) {
-      connectionManager.sendTo(connectionId, {
-        type: "error",
+      sendCommandError(connectionManager, connectionId, {
+        action: "agent.run",
+        requestId: payload.clientRequestId,
         code: error.code,
         message: error.message,
       });
@@ -474,8 +450,9 @@ async function handleRunCommand(
   const runtimeModel = resolvedModel;
   log.lap("resolve", { threadId: !!threadId, model: runtimeModel });
   if (runtimeEnv?.trustedLocalAgentMode === false) {
-    connectionManager.sendTo(connectionId, {
-      type: "error",
+    sendCommandError(connectionManager, connectionId, {
+      action: "agent.run",
+      requestId: payload.clientRequestId,
       code: "local_agent_disabled",
       message: "Local agent runtime is disabled for this server.",
     });
@@ -539,11 +516,24 @@ async function handleRunCommand(
   const ackMessage = {
     type: "command.ack",
     action: "agent.run",
+    requestId: payload.clientRequestId ?? runId,
     payload: {
       ...response,
       ...(assistantMessageId ? { assistantMessageId } : {}),
     },
   };
+  if (!response.reused) {
+    connectionManager.setActiveRun(
+      canvasId,
+      runId,
+      payload.sessionId,
+      assistantMessageId,
+      response.runtimeKind,
+      response.runtimeProvider,
+      response.agentTargetId,
+    );
+  }
+
   let ackSent = connectionManager.sendTo(connectionId, ackMessage);
   if (!ackSent) {
     for (let i = 0; i < 5; i++) {
@@ -558,17 +548,6 @@ async function handleRunCommand(
     log.lap("run_reused", { runId, connectionId });
     return;
   }
-
-  // Track active run so reconnecting clients can detect it
-  connectionManager.setActiveRun(
-    canvasId,
-    runId,
-    payload.sessionId,
-    assistantMessageId,
-    response.runtimeKind,
-    response.runtimeProvider,
-    response.agentTargetId,
-  );
 
   const keepAlive = setInterval(() => {
     connectionManager.sendTo(connectionId, { type: "keep-alive" });
@@ -666,7 +645,13 @@ async function handleCancelCommand(
   const cancelResult = agentRuns.cancelRun(runId);
   if (!cancelResult) {
     socket.send(
-      JSON.stringify({ type: "error", message: `Run not found: ${runId}` }),
+      JSON.stringify({
+        type: "command.error",
+        action: "agent.cancel",
+        requestId: runId,
+        code: "run_not_found",
+        message: `Run not found: ${runId}`,
+      }),
     );
     return;
   }
@@ -691,4 +676,41 @@ async function handleCancelCommand(
     runId,
   });
   connectionManager.clearActiveRun(activeRun.canvasId, runId);
+}
+
+export async function resolveRunAgentTargetIdentity(
+  payload: Pick<
+    RunCreateRequest,
+    "agentTargetId" | "model" | "runtimeProvider"
+  >,
+  defaultModel?: string,
+  resolver: typeof resolveAgentTarget = resolveAgentTarget,
+) {
+  const modelProvider = getLocalAgentModelProvider(
+    payload.model ?? defaultModel,
+  );
+  return await resolver({
+    ...(payload.agentTargetId ? { agentTargetId: payload.agentTargetId } : {}),
+    ...(payload.runtimeProvider
+      ? { providerId: payload.runtimeProvider }
+      : !payload.agentTargetId && modelProvider
+        ? { providerId: modelProvider }
+        : {}),
+  });
+}
+
+function sendCommandError(
+  connectionManager: ConnectionManager,
+  connectionId: string,
+  error: {
+    action: string;
+    requestId: string | undefined;
+    code: string;
+    message: string;
+  },
+) {
+  connectionManager.sendTo(connectionId, {
+    type: "command.error",
+    ...error,
+  });
 }

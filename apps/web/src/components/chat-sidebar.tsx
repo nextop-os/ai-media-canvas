@@ -877,6 +877,8 @@ export function ChatSidebar({
           videoGenerationPreferenceOverride ??
           activeVideoGenerationPreferenceRef.current;
         const agentPromptText = text;
+        const runClientRequestId =
+          clientRequestIdOverride ?? crypto.randomUUID();
 
         // Add user message locally
         const imageBlocks: ContentBlock[] = currentAttachments.map((a) => ({
@@ -937,9 +939,12 @@ export function ChatSidebar({
 
         let failureStage: SendFailureStage = "save_message";
         let cleanupStreamListener: (() => void) | undefined;
-        const cleanupRegisteredStreamListener = () => {
+        let cleanupPendingRunCommand: (() => void) | undefined;
+        const cleanupRegisteredRunListeners = () => {
           cleanupStreamListener?.();
           cleanupStreamListener = undefined;
+          cleanupPendingRunCommand?.();
+          cleanupPendingRunCommand = undefined;
         };
         try {
           await userMessageSave;
@@ -956,7 +961,7 @@ export function ChatSidebar({
           const streamDone = new Promise<void>((r) => {
             resolveStream = r;
           });
-          const runIdRef = { current: "" };
+          const runIdRef = { current: runClientRequestId };
           const runCanvasId = canvasId;
 
           cleanupStreamListener = ws.onEvent((entry) => {
@@ -1064,7 +1069,7 @@ export function ChatSidebar({
           const previousRunId =
             lastCompletedRunIdsRef.current.get(currentSessionId);
           const runPayload = {
-            clientRequestId: clientRequestIdOverride ?? crypto.randomUUID(),
+            clientRequestId: runClientRequestId,
             sessionId: currentSessionId,
             conversationId: canvasId,
             prompt: agentPromptText,
@@ -1107,80 +1112,97 @@ export function ChatSidebar({
               : {}),
           };
 
-          const runId = await new Promise<string>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              cleanupRegisteredStreamListener();
-              reject(
-                new Error("WebSocket ack timeout — connection may be down"),
-              );
-            }, 10_000);
+          activeRunIdsRef.current.set(currentSessionId, runClientRequestId);
+          if (activeSessionIdRef.current === currentSessionId) {
+            setActiveRunId(runClientRequestId);
+          }
 
-            ws.startRun(runPayload, (ack) => {
-              clearTimeout(timeout);
-              perf.tAck = performance.now();
-              console.log(
-                `[perf] send → ack: ${(perf.tAck - perf.t0Send).toFixed(0)}ms`,
-              );
-              const payloadRecord = ack.payload as Record<string, unknown>;
-              const id = payloadRecord.runId as string;
-              const reused = payloadRecord.reused === true;
-              const assistantMessageId =
-                typeof payloadRecord.assistantMessageId === "string"
-                  ? payloadRecord.assistantMessageId
-                  : null;
-              if (
-                assistantMessageId &&
-                assistantMessageId !== assistantIdRef.current
-              ) {
-                const previousAssistantId = assistantIdRef.current;
-                assistantIdRef.current = assistantMessageId;
-                updateSessionMessages(currentSessionId, (prev) =>
-                  prev.map((message) =>
-                    message.id === previousAssistantId
-                      ? { ...message, id: assistantMessageId }
-                      : message,
-                  ),
+          await new Promise<string>((resolve, reject) => {
+            cleanupPendingRunCommand = ws.startRun(
+              runPayload,
+              (ack) => {
+                cleanupPendingRunCommand = undefined;
+                perf.tAck = performance.now();
+                console.log(
+                  `[perf] send → ack: ${(perf.tAck - perf.t0Send).toFixed(0)}ms`,
                 );
-              }
-              runIdRef.current = id;
-              activeRunIdsRef.current.set(currentSessionId, id);
-              if (activeSessionIdRef.current === currentSessionId) {
-                setActiveRunId(id);
-              }
-              reportUserActive();
-              if (reused) {
-                void reloadMessages(currentSessionId).finally(resolveStream);
-              }
-              resolve(id);
-            });
+                const payloadRecord = ack.payload as Record<string, unknown>;
+                const id = payloadRecord.runId as string;
+                const reused = payloadRecord.reused === true;
+                const assistantMessageId =
+                  typeof payloadRecord.assistantMessageId === "string"
+                    ? payloadRecord.assistantMessageId
+                    : null;
+                if (
+                  assistantMessageId &&
+                  assistantMessageId !== assistantIdRef.current
+                ) {
+                  const previousAssistantId = assistantIdRef.current;
+                  assistantIdRef.current = assistantMessageId;
+                  updateSessionMessages(currentSessionId, (prev) =>
+                    prev.map((message) =>
+                      message.id === previousAssistantId
+                        ? { ...message, id: assistantMessageId }
+                        : message,
+                    ),
+                  );
+                }
+                runIdRef.current = id;
+                activeRunIdsRef.current.set(currentSessionId, id);
+                if (activeSessionIdRef.current === currentSessionId) {
+                  setActiveRunId(id);
+                }
+                reportUserActive();
+                if (reused) {
+                  void reloadMessages(currentSessionId).finally(resolveStream);
+                }
+                resolve(id);
+              },
+              (error) => {
+                cleanupPendingRunCommand = undefined;
+                reject(
+                  Object.assign(new Error(error.message), { code: error.code }),
+                );
+              },
+            );
           });
           clearAttachments();
 
           failureStage = "stream";
           await streamDone;
-          cleanupRegisteredStreamListener();
+          cleanupRegisteredRunListeners();
         } catch (error) {
+          const errorCode =
+            error instanceof Error &&
+            typeof (error as Error & { code?: unknown }).code === "string"
+              ? (error as Error & { code: string }).code
+              : undefined;
+          const acceptanceStatusUnknown =
+            errorCode === "acceptance_status_unknown" ||
+            errorCode === "client_disposed";
           console.warn("[chat] Failed to send agent message", {
             ...sendDiagnostics,
             error: summarizeClientError(error),
             stage: failureStage,
           });
-          updateSessionMessages(currentSessionId, (prev) =>
-            prev.map((m) => {
-              if (m.id !== assistantIdRef.current) return m;
-              const hasText = m.contentBlocks.some((b) => b.type === "text");
-              if (hasText) return m;
-              return {
-                ...m,
-                contentBlocks: [
-                  ...m.contentBlocks,
-                  { type: "text" as const, text: "Failed to get response." },
-                ],
-              };
-            }),
-          );
+          if (!acceptanceStatusUnknown) {
+            updateSessionMessages(currentSessionId, (prev) =>
+              prev.map((m) => {
+                if (m.id !== assistantIdRef.current) return m;
+                const hasText = m.contentBlocks.some((b) => b.type === "text");
+                if (hasText) return m;
+                return {
+                  ...m,
+                  contentBlocks: [
+                    ...m.contentBlocks,
+                    { type: "text" as const, text: "Failed to get response." },
+                  ],
+                };
+              }),
+            );
+          }
         } finally {
-          cleanupRegisteredStreamListener();
+          cleanupRegisteredRunListeners();
           inFlightSessionIdsRef.current.delete(currentSessionId);
           const runningId = activeRunIdsRef.current.get(currentSessionId);
           activeRunIdsRef.current.delete(currentSessionId);
