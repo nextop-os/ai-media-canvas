@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 export const DEFAULT_SERVER_PORT = 3001;
 export const DEFAULT_WEB_ORIGIN = "http://localhost:3000";
@@ -170,7 +170,7 @@ export function loadServerEnv(
   const tuttiManagedFilesRoot =
     overrides.tuttiManagedFilesRoot ??
     (tshWorkspaceApp && resolvedDatabaseRoot
-      ? join(resolvedDatabaseRoot, "uploads")
+      ? posix.join(resolvedDatabaseRoot, "uploads")
       : (normalizeOptionalString(source.AIMC_TUTTI_MANAGED_FILES_ROOT) ??
         configuredTuttiManagedFilesRoot ??
         (dataRoot ? join(dataRoot, "uploads") : undefined)));
