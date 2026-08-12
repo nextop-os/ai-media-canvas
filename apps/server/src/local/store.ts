@@ -11,7 +11,16 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
 import type {
@@ -54,7 +63,6 @@ import type {
 } from "@aimc/shared";
 import { getBundledSkills } from "./skill-catalog.js";
 import {
-  TSH_DEFAULT_PARENT_PATH,
   allocateTshProjectRoot,
   ensureTshProjectRoot,
   isTshWorkspaceAppHost,
@@ -291,17 +299,29 @@ export type LocalStore = ReturnType<typeof createLocalStore>;
 
 export function appDataRelativeAssetPath(
   filePath: string,
-  dataRoot: string,
-  env: NodeJS.ProcessEnv = process.env,
+  appDataRoot: string,
+  allowedWorkspaceRoot?: string | null,
 ): string {
-  const root = isTshWorkspaceAppHost(env) ? TSH_DEFAULT_PARENT_PATH : dataRoot;
+  const root = resolve(appDataRoot);
+  const target = resolve(filePath);
   const relativePath = relative(root, filePath);
   if (
     !relativePath ||
-    relativePath.startsWith("..") ||
-    resolve(root, relativePath) !== resolve(filePath)
+    isAbsolute(relativePath) ||
+    resolve(root, relativePath) !== target
   ) {
     throw new Error(`Asset path must be inside ${root}`);
+  }
+  if (relativePath === ".." || relativePath.startsWith(`..${sep}`)) {
+    const allowedRoot = allowedWorkspaceRoot
+      ? resolve(allowedWorkspaceRoot)
+      : null;
+    if (
+      !allowedRoot ||
+      (target !== allowedRoot && !target.startsWith(`${allowedRoot}${sep}`))
+    ) {
+      throw new Error("Asset path must be inside the bound project workspace");
+    }
   }
   return relativePath.split("\\").join("/");
 }
@@ -310,11 +330,13 @@ export function createLocalStore(options: {
   assetBaseUrl: string;
   databaseRoot?: string;
   dataRoot?: string;
+  referenceAppDataRoot?: string;
 }) {
   let workspaceSettingsHasLegacyIdColumn = false;
   const dataRoot =
     options.dataRoot ?? resolve(process.cwd(), "../../local-data");
   const databaseRoot = options.databaseRoot ?? dataRoot;
+  const referenceAppDataRoot = options.referenceAppDataRoot ?? dataRoot;
   // TSH reserves /workspace for project directories chosen by the user. Keep
   // uploads, thumbnails, brand kits, and other private state VM-local.
   const assetsRoot = join(
@@ -4310,18 +4332,26 @@ export function createLocalStore(options: {
     }
   }
 
-  function dataRelativePath(filePath: string): string {
-    return appDataRelativeAssetPath(filePath, dataRoot);
+  function dataRelativePath(
+    filePath: string,
+    projectId?: string | null,
+  ): string {
+    return appDataRelativeAssetPath(
+      filePath,
+      referenceAppDataRoot,
+      projectId ? getProjectWorkspaceRoot(projectId) : null,
+    );
   }
 
   function assetReferencePath(row: {
     file_path: string;
     object_path: string;
+    project_id?: string | null;
     source?: AssetSource | null;
   }): string {
     return row.source === "managed-file"
       ? row.object_path
-      : dataRelativePath(row.file_path);
+      : dataRelativePath(row.file_path, row.project_id);
   }
 
   // Root level: one group per active project, in the exact same order as the
@@ -4544,7 +4574,10 @@ export function createLocalStore(options: {
           id: row.id,
           displayName:
             row.display_name ?? row.object_path.split("/").at(-1) ?? row.id,
-          relativePath: assetReferencePath(row),
+          relativePath: assetReferencePath({
+            ...row,
+            project_id: input.projectId,
+          }),
           mimeType: row.mime_type,
           sizeBytes: row.byte_size,
           mtimeMs: Number.isNaN(mtime) ? null : mtime,
@@ -4672,7 +4705,7 @@ export function createLocalStore(options: {
       .prepare(
         `
           SELECT a.id, a.object_path, a.mime_type, a.byte_size, a.file_path,
-                 a.source, a.display_name,
+                 a.source, a.display_name, a.project_id,
                  a.created_at, p.name AS project_name
           FROM assets a
           LEFT JOIN projects p ON p.id = a.project_id
@@ -4688,6 +4721,7 @@ export function createLocalStore(options: {
       byte_size: number | null;
       file_path: string;
       source: AssetSource | null;
+      project_id: string | null;
       display_name: string | null;
       created_at: string;
       project_name: string | null;
@@ -4702,7 +4736,13 @@ export function createLocalStore(options: {
           id: row.id,
           displayName:
             row.display_name ?? row.object_path.split("/").at(-1) ?? row.id,
-          relativePath: assetReferencePath(row),
+          relativePath: assetReferencePath({
+            ...row,
+            project_id:
+              row.project_id ??
+              canvasAssetOwners.get(row.id)?.projectId ??
+              null,
+          }),
           mimeType: row.mime_type,
           sizeBytes: row.byte_size,
           mtimeMs: Number.isNaN(mtime) ? null : mtime,

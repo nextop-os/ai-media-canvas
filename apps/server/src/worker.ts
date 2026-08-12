@@ -30,6 +30,9 @@ const store = createLocalStore({
   assetBaseUrl: `http://${host}:${env.port}`,
   ...(env.dataRoot ? { dataRoot: env.dataRoot } : {}),
   ...(env.databaseRoot ? { databaseRoot: env.databaseRoot } : {}),
+  ...(env.referenceAppDataRoot
+    ? { referenceAppDataRoot: env.referenceAppDataRoot }
+    : {}),
 });
 const jobService = createJobService(store);
 const settingsService = createSettingsService(store, env);
@@ -39,9 +42,8 @@ const runner = createWorkerRunner({
   maxBatchSize: env.workerMaxBatchSize ?? 4,
   jobService,
   async executeJob(job) {
-    const effectiveEnv = await settingsService.getEffectiveServerEnv(
-      LOCAL_WORKSPACE_ID,
-    );
+    const effectiveEnv =
+      await settingsService.getEffectiveServerEnv(LOCAL_WORKSPACE_ID);
     applyEffectiveProviderEnv(effectiveEnv);
     await executeBackgroundJob(store, jobService, job, effectiveEnv);
   },

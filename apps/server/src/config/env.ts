@@ -45,6 +45,7 @@ export type ServerEnv = {
   tuttiWorkspaceId?: string;
   port: number;
   replicateApiToken?: string;
+  referenceAppDataRoot?: string;
   skillsRoot?: string;
   trustedLocalAgentMode?: boolean;
   version: string;
@@ -84,6 +85,10 @@ export function loadServerEnv(
       : (normalizeOptionalString(source.AIMC_DATA_ROOT) ??
         normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
         dataRoot));
+  const referenceAppDataRoot =
+    overrides.referenceAppDataRoot ??
+    normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
+    dataRoot;
   const agentBackendMode =
     overrides.agentBackendMode ??
     parseAgentBackendMode(
@@ -294,6 +299,7 @@ export function loadServerEnv(
     ...(googleVertexLocation ? { googleVertexLocation } : {}),
     ...(googleVertexVideoLocation ? { googleVertexVideoLocation } : {}),
     ...(replicateApiToken ? { replicateApiToken } : {}),
+    ...(referenceAppDataRoot ? { referenceAppDataRoot } : {}),
     ...(kieApiKey ? { kieApiKey } : {}),
     ...(kieBaseUrl ? { kieBaseUrl } : {}),
     ...(kieUploadBaseUrl ? { kieUploadBaseUrl } : {}),
