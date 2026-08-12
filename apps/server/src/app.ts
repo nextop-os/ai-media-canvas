@@ -895,6 +895,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     assetBaseUrl,
     ...(env.dataRoot ? { dataRoot: env.dataRoot } : {}),
     ...(env.databaseRoot ? { databaseRoot: env.databaseRoot } : {}),
+    ...(env.referenceAppDataRoot
+      ? { referenceAppDataRoot: env.referenceAppDataRoot }
+      : {}),
   });
   store.recoverInterruptedAgentRuns();
 

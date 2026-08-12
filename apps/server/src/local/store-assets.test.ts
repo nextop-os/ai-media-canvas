@@ -1,6 +1,12 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appDataRelativeAssetPath, createLocalStore } from "./store.js";
@@ -115,23 +121,82 @@ describe("local asset storage", () => {
     expect(existsSync(join(dataRoot, "assets"))).toBe(false);
   });
 
-  it("resolves TSH project outputs relative to the workspace root", () => {
+  it("encodes bound project outputs from the injected app-data root", () => {
     expect(
       appDataRelativeAssetPath(
         "/workspace/canvas-2026-08-12-1/generated/result.png",
-        "/var/lib/tsh/workspace-apps/aimc",
-        { TSH_WORKSPACE_APP: "1" },
+        "/workspace/.tsh/apps/data/aimc",
+        "/workspace/canvas-2026-08-12-1",
       ),
-    ).toBe("canvas-2026-08-12-1/generated/result.png");
+    ).toBe("../../../../canvas-2026-08-12-1/generated/result.png");
+  });
+
+  it("lists a bound generated asset with a locator that resolves to its real file", () => {
+    const root = mkdtempSync(join(tmpdir(), "aimc-reference-adapter-"));
+    tempDirs.push(root);
+    const dataRoot = join(root, "private");
+    const appDataRoot = join(root, "workspace", ".tsh", "apps", "data", "aimc");
+    const workspaceRoot = join(root, "workspace", "canvas-project");
+    mkdirSync(appDataRoot, { recursive: true });
+
+    const store = createLocalStore({
+      assetBaseUrl: "http://127.0.0.1:3001",
+      dataRoot,
+      referenceAppDataRoot: appDataRoot,
+    });
+    const project = store.createProject({ name: "Campaign" });
+    store.bindProjectWorkspaceRoot(project.id, workspaceRoot);
+    const generated = store.uploadFile({
+      bucket: "project-assets",
+      fileName: "result.png",
+      displayName: "Result",
+      fileBuffer: Buffer.from("png-bytes"),
+      mimeType: "image/png",
+      scope: "generated",
+      projectId: project.id,
+    });
+    store.saveCanvas(project.primaryCanvas.id, {
+      elements: [
+        {
+          id: "generated-element",
+          type: "image",
+          fileId: "generated-file",
+          isDeleted: false,
+          customData: {
+            source: "generated",
+            assetId: generated.asset.id,
+          },
+        } as never,
+      ],
+      appState: {},
+      files: {
+        "generated-file": {
+          id: "generated-file",
+          assetId: generated.asset.id,
+          mimeType: "image/png",
+        },
+      },
+    });
+    const references = store.listReferenceProjectAssets({
+      projectId: project.id,
+      limit: 20,
+    });
+
+    expect(references.files).toHaveLength(1);
+    const reference = references.files[0];
+    expect(reference).toBeDefined();
+    expect(resolve(appDataRoot, reference?.relativePath ?? "")).toBe(
+      resolve(generated.filePath),
+    );
   });
 
   it("does not expose VM-local private assets as workspace references", () => {
     expect(() =>
       appDataRelativeAssetPath(
         "/var/lib/tsh/workspace-apps/aimc/assets/uploads/input.png",
-        "/var/lib/tsh/workspace-apps/aimc",
-        { TSH_WORKSPACE_APP: "1" },
+        "/workspace/.tsh/apps/data/aimc",
+        "/workspace/canvas-2026-08-12-1",
       ),
-    ).toThrow("Asset path must be inside /workspace");
+    ).toThrow("Asset path must be inside the bound project workspace");
   });
 });

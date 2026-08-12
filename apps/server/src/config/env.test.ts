@@ -76,6 +76,7 @@ describe("loadServerEnv", () => {
 
     expect(env.dataRoot).toBe("/var/lib/tsh/workspace-apps/aimc");
     expect(env.appDataDir).toBe("/var/lib/tsh/workspace-apps/aimc");
+    expect(env.referenceAppDataRoot).toBe("/workspace");
     expect(env.databaseRoot).toBe("/var/lib/tsh/workspace-apps/aimc");
     expect(env.tuttiManagedFilesRoot).toBe(
       "/var/lib/tsh/workspace-apps/aimc/uploads",
