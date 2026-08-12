@@ -695,8 +695,13 @@ export HOST="\${TUTTI_APP_HOST:-127.0.0.1}"
 export AIMC_SERVER_PORT="\${TUTTI_APP_PORT:-3001}"
 export AIMC_APP_VERSION="${version}"
 export AIMC_WEB_DIST="$package_dir/dist"
-export AIMC_DATA_ROOT="\${TUTTI_APP_DATA_DIR:-$package_dir/.data}"
-export AIMC_DATABASE_ROOT="\${TUTTI_APP_DATABASE_DIR:-\$AIMC_DATA_ROOT}"
+if [ "\${TSH_WORKSPACE_APP:-}" = "1" ] && [ -n "\${TUTTI_APP_DATABASE_DIR:-}" ]; then
+  export AIMC_DATA_ROOT="$TUTTI_APP_DATABASE_DIR"
+  export AIMC_DATABASE_ROOT="$TUTTI_APP_DATABASE_DIR"
+else
+  export AIMC_DATA_ROOT="\${TUTTI_APP_DATA_DIR:-$package_dir/.data}"
+  export AIMC_DATABASE_ROOT="\${TUTTI_APP_DATABASE_DIR:-\$AIMC_DATA_ROOT}"
+fi
 export AIMC_SKILLS_ROOT="$package_dir/skills"
 export AIMC_TOOLS_MCP_PATH="$package_dir/server/tools-mcp.js"
 export AIMC_AGENT_FILES_ROOT="\$AIMC_DATA_ROOT"
@@ -708,7 +713,7 @@ export AIMC_WEB_ORIGIN="$base_url"
 export AIMC_SERVER_BASE_URL="$base_url"
 
 node_bin="\${TUTTI_APP_NODE:-node}"
-runtime_dir="\${TUTTI_APP_RUNTIME_DIR:-$AIMC_DATA_ROOT/.runtime}"
+runtime_dir="\${TUTTI_APP_RUNTIME_DIR:-$AIMC_DATABASE_ROOT/.runtime}"
 mkdir -p "$AIMC_DATA_ROOT" "$AIMC_DATABASE_ROOT" "$runtime_dir"
 legacy_db="$AIMC_DATA_ROOT/ai-media-canvas.db"
 database_db="$AIMC_DATABASE_ROOT/ai-media-canvas.db"
@@ -799,19 +804,17 @@ This package runs AI Canvas as a Tutti workspace app.
 ## Runtime
 
 Tutti executes \`bootstrap.sh\` with no arguments. The bootstrap script binds
-the server to \`TUTTI_APP_HOST:TUTTI_APP_PORT\`, serves \`dist/\`, and stores
-SQLite, WAL, and database indexes under \`TUTTI_APP_DATABASE_DIR\`. App-owned
-thumbnails, uploads, brand-kit assets, and generated media live under
-\`TUTTI_APP_DATA_DIR\` so Tutti can resolve \`app-data-relative\` references.
-Generated media for a bound project can instead live under its user-selected
-\`/workspace\` directory.
+the server to \`TUTTI_APP_HOST:TUTTI_APP_PORT\` and serves \`dist/\`. On TSH,
+all private app state (SQLite, sessions, thumbnails, uploads, and brand kits)
+lives under the VM-local \`TUTTI_APP_DATABASE_DIR\`. Project output is written
+only after a project is created under its user-selected \`/workspace\` parent.
 When those variables are absent during local direct startup, it falls back to
 \`127.0.0.1:3001\`, \`./.data\`, and the system \`node\` command.
 
-Treat \`TUTTI_APP_PACKAGE_DIR\` as read-only. Use \`TUTTI_APP_DATABASE_DIR\` only
-for database files, \`TUTTI_APP_DATA_DIR\` for app-owned assets,
-\`TUTTI_APP_RUNTIME_DIR\` for scratch files, and \`TUTTI_APP_LOG_DIR\` for
-additional logs if future changes add them.
+Treat \`TUTTI_APP_PACKAGE_DIR\` as read-only. On TSH, do not use
+\`TUTTI_APP_DATA_DIR\` as a private storage root because it maps to the user's
+workspace. Use \`TUTTI_APP_RUNTIME_DIR\` for scratch files and
+\`TUTTI_APP_LOG_DIR\` for additional logs if future changes add them.
 
 ## Codex Image Generation Consent
 

@@ -368,17 +368,11 @@ test("renderBootstrap maps Tutti runtime env into AI Canvas env", () => {
   );
   assert.match(bootstrap, /export AIMC_APP_VERSION="1\.2\.3"/);
   assert.match(bootstrap, /export AIMC_WEB_DIST="\$package_dir\/dist"/);
-  assert.match(
-    bootstrap,
-    /export AIMC_DATA_ROOT="\$\{TUTTI_APP_DATA_DIR:-\$package_dir\/\.data\}"/,
-  );
+  assert.match(bootstrap, /if \[ "\$\{TSH_WORKSPACE_APP:-\}" = "1" \]/);
+  assert.match(bootstrap, /export AIMC_DATA_ROOT="\$TUTTI_APP_DATABASE_DIR"/);
   assert.match(
     bootstrap,
     /export AIMC_DATABASE_ROOT="\$\{TUTTI_APP_DATABASE_DIR:-\$AIMC_DATA_ROOT\}"/,
-  );
-  assert.doesNotMatch(
-    bootstrap,
-    /export AIMC_DATA_ROOT="\$TUTTI_APP_DATABASE_DIR"/,
   );
   assert.match(bootstrap, /legacy_db="\$AIMC_DATA_ROOT\/ai-media-canvas\.db"/);
   assert.match(bootstrap, /export AIMC_SKILLS_ROOT="\$package_dir\/skills"/);
@@ -395,7 +389,7 @@ test("renderBootstrap maps Tutti runtime env into AI Canvas env", () => {
   assert.match(bootstrap, /node_bin="\$\{TUTTI_APP_NODE:-node\}"/);
   assert.match(
     bootstrap,
-    /runtime_dir="\$\{TUTTI_APP_RUNTIME_DIR:-\$AIMC_DATA_ROOT\/\.runtime\}"/,
+    /runtime_dir="\$\{TUTTI_APP_RUNTIME_DIR:-\$AIMC_DATABASE_ROOT\/\.runtime\}"/,
   );
   assert.doesNotMatch(bootstrap, new RegExp("NEXT" + "OP"));
   assert.match(

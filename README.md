@@ -135,6 +135,10 @@ By default, local runtime data is written under `local-data/`:
 Set `AIMC_DATA_ROOT` to move app-owned assets elsewhere. Set
 `AIMC_DATABASE_ROOT` when SQLite files must use a separate database directory.
 
+In TSH, private state and assets stay under the VM-local database root.
+`/workspace` is used only for project output after the user chooses a project
+parent directory; app startup must not create private asset folders there.
+
 ## Workspace Layout
 
 ```text
