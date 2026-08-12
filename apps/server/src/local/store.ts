@@ -54,6 +54,7 @@ import type {
 } from "@aimc/shared";
 import { getBundledSkills } from "./skill-catalog.js";
 import {
+  TSH_DEFAULT_PARENT_PATH,
   allocateTshProjectRoot,
   ensureTshProjectRoot,
   isTshWorkspaceAppHost,
@@ -288,6 +289,23 @@ function normalizeAssetDisplayName(
 
 export type LocalStore = ReturnType<typeof createLocalStore>;
 
+export function appDataRelativeAssetPath(
+  filePath: string,
+  dataRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const root = isTshWorkspaceAppHost(env) ? TSH_DEFAULT_PARENT_PATH : dataRoot;
+  const relativePath = relative(root, filePath);
+  if (
+    !relativePath ||
+    relativePath.startsWith("..") ||
+    resolve(root, relativePath) !== resolve(filePath)
+  ) {
+    throw new Error(`Asset path must be inside ${root}`);
+  }
+  return relativePath.split("\\").join("/");
+}
+
 export function createLocalStore(options: {
   assetBaseUrl: string;
   databaseRoot?: string;
@@ -297,9 +315,12 @@ export function createLocalStore(options: {
   const dataRoot =
     options.dataRoot ?? resolve(process.cwd(), "../../local-data");
   const databaseRoot = options.databaseRoot ?? dataRoot;
-  // SQLite state belongs in databaseRoot. User-visible assets must live under
-  // dataRoot so app-data-relative references resolve through the Tutti host.
-  const assetsRoot = join(dataRoot, "assets");
+  // TSH reserves /workspace for project directories chosen by the user. Keep
+  // uploads, thumbnails, brand kits, and other private state VM-local.
+  const assetsRoot = join(
+    isTshWorkspaceAppHost() ? databaseRoot : dataRoot,
+    "assets",
+  );
   const uploadsRoot = join(assetsRoot, "uploads");
   const brandKitRoot = join(assetsRoot, "brand-kits");
   const projectRoot = join(assetsRoot, "projects");
@@ -4290,7 +4311,7 @@ export function createLocalStore(options: {
   }
 
   function dataRelativePath(filePath: string): string {
-    return relative(dataRoot, filePath).split("\\").join("/");
+    return appDataRelativeAssetPath(filePath, dataRoot);
   }
 
   function assetReferencePath(row: {

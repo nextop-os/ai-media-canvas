@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 
 import { loadServerEnv } from "./env.js";
 
@@ -15,7 +15,9 @@ describe("loadServerEnv", () => {
 
     expect(env.dataRoot).toBe("/tmp/aimc-tutti-data");
     expect(env.appDataDir).toBe("/tmp/aimc-tutti-data");
-    expect(env.tuttiManagedFilesRoot).toBe(join("/tmp/aimc-tutti-data", "uploads"));
+    expect(env.tuttiManagedFilesRoot).toBe(
+      join("/tmp/aimc-tutti-data", "uploads"),
+    );
     expect(env.version).toBe("1.2.3");
   });
 
@@ -58,8 +60,25 @@ describe("loadServerEnv", () => {
 
     expect(env.dataRoot).toBe("/data/tutti-app");
     expect(env.databaseRoot).toBe("/var/lib/tutti-app-database");
+    expect(env.tuttiManagedFilesRoot).toBe(join("/data/tutti-app", "uploads"));
+  });
+
+  it("keeps all private TSH app state in the VM-local database root", () => {
+    const env = loadServerEnv(
+      {},
+      {
+        TSH_WORKSPACE_APP: "1",
+        TUTTI_APP_DATA_DIR: "/workspace",
+        TUTTI_APP_DATABASE_DIR: "/var/lib/tsh/workspace-apps/aimc",
+        TUTTI_APP_MANAGED_FILES_ROOT: "/workspace/uploads",
+      },
+    );
+
+    expect(env.dataRoot).toBe("/var/lib/tsh/workspace-apps/aimc");
+    expect(env.appDataDir).toBe("/var/lib/tsh/workspace-apps/aimc");
+    expect(env.databaseRoot).toBe("/var/lib/tsh/workspace-apps/aimc");
     expect(env.tuttiManagedFilesRoot).toBe(
-      join("/data/tutti-app", "uploads"),
+      "/var/lib/tsh/workspace-apps/aimc/uploads",
     );
   });
 

@@ -1,13 +1,14 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createLocalStore } from "./store.js";
+import { appDataRelativeAssetPath, createLocalStore } from "./store.js";
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -90,12 +91,14 @@ describe("local asset storage", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "aimc-store-data-"));
     const databaseRoot = mkdtempSync(join(tmpdir(), "aimc-store-db-"));
     tempDirs.push(dataRoot, databaseRoot);
+    vi.stubEnv("TSH_WORKSPACE_APP", "1");
 
     const store = createLocalStore({
       assetBaseUrl: "http://127.0.0.1:3001",
       dataRoot,
       databaseRoot,
     });
+    vi.unstubAllEnvs();
     const project = store.createProject({ name: "Thumbnails" });
     const result = store.saveProjectThumbnail(
       project.id,
@@ -106,9 +109,29 @@ describe("local asset storage", () => {
     expect(result?.thumbnailUrl).toMatch(/\/local-assets\//);
     const thumbDir = join(databaseRoot, "assets", "projects");
     expect(existsSync(thumbDir)).toBe(true);
-    expect(
-      readdirSync(thumbDir).some((name) => name.endsWith(".webp")),
-    ).toBe(true);
+    expect(readdirSync(thumbDir).some((name) => name.endsWith(".webp"))).toBe(
+      true,
+    );
     expect(existsSync(join(dataRoot, "assets"))).toBe(false);
+  });
+
+  it("resolves TSH project outputs relative to the workspace root", () => {
+    expect(
+      appDataRelativeAssetPath(
+        "/workspace/canvas-2026-08-12-1/generated/result.png",
+        "/var/lib/tsh/workspace-apps/aimc",
+        { TSH_WORKSPACE_APP: "1" },
+      ),
+    ).toBe("canvas-2026-08-12-1/generated/result.png");
+  });
+
+  it("does not expose VM-local private assets as workspace references", () => {
+    expect(() =>
+      appDataRelativeAssetPath(
+        "/var/lib/tsh/workspace-apps/aimc/assets/uploads/input.png",
+        "/var/lib/tsh/workspace-apps/aimc",
+        { TSH_WORKSPACE_APP: "1" },
+      ),
+    ).toThrow("Asset path must be inside /workspace");
   });
 });

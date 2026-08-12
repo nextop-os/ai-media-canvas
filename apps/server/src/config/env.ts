@@ -63,6 +63,7 @@ export function loadServerEnv(
 ): ServerEnv {
   const webDistDir =
     overrides.webDistDir ?? normalizeOptionalString(source.AIMC_WEB_DIST);
+  const tshWorkspaceApp = source.TSH_WORKSPACE_APP?.trim() === "1";
   const databaseRoot =
     overrides.databaseRoot ??
     normalizeOptionalString(
@@ -70,15 +71,19 @@ export function loadServerEnv(
     );
   const dataRoot =
     overrides.dataRoot ??
-    normalizeOptionalString(source.AIMC_DATA_ROOT) ??
-    normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
-    databaseRoot;
+    (tshWorkspaceApp
+      ? databaseRoot
+      : (normalizeOptionalString(source.AIMC_DATA_ROOT) ??
+        normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
+        databaseRoot));
   const resolvedDatabaseRoot = databaseRoot ?? dataRoot;
   const appDataDir =
     overrides.appDataDir ??
-    normalizeOptionalString(source.AIMC_DATA_ROOT) ??
-    normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
-    dataRoot;
+    (tshWorkspaceApp
+      ? resolvedDatabaseRoot
+      : (normalizeOptionalString(source.AIMC_DATA_ROOT) ??
+        normalizeOptionalString(source.TUTTI_APP_DATA_DIR) ??
+        dataRoot));
   const agentBackendMode =
     overrides.agentBackendMode ??
     parseAgentBackendMode(
@@ -164,9 +169,11 @@ export function loadServerEnv(
   );
   const tuttiManagedFilesRoot =
     overrides.tuttiManagedFilesRoot ??
-    normalizeOptionalString(source.AIMC_TUTTI_MANAGED_FILES_ROOT) ??
-    configuredTuttiManagedFilesRoot ??
-    (dataRoot ? join(dataRoot, "uploads") : undefined);
+    (tshWorkspaceApp && resolvedDatabaseRoot
+      ? join(resolvedDatabaseRoot, "uploads")
+      : (normalizeOptionalString(source.AIMC_TUTTI_MANAGED_FILES_ROOT) ??
+        configuredTuttiManagedFilesRoot ??
+        (dataRoot ? join(dataRoot, "uploads") : undefined)));
   const tuttiAppServerToken =
     overrides.tuttiAppServerToken ??
     normalizeOptionalString(source.TUTTI_APP_SERVER_TOKEN);
