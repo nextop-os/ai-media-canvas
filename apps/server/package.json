@@ -9,7 +9,7 @@
     "@fastify/websocket": "^11.2.0",
     "@google/genai": "^1.47.0",
     "@langchain/core": "1.1.48",
-    "@tutti-os/agent-acp-kit": "0.7.11",
+    "@tutti-os/agent-acp-kit": "0.7.13",
     "agnes-ai-cli": "^0.1.6",
     "ajv": "^8.18.0",
     "deepagents": "^1.10.2",
