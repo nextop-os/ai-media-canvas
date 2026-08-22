@@ -354,7 +354,7 @@ export const ToolBlockView = React.memo(function ToolBlockView({
               <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M9.78 11.78a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 0-1.06l3.5-3.5a.75.75 0 0 1 1.06 1.06L6.56 8l3.22 3.22a.75.75 0 0 1 0 1.06Z" />
               </svg>
-              查看详情
+              {t("tool.viewDetails")}
             </button>
           )}
         </div>
@@ -386,10 +386,7 @@ function getMediaCapabilityRequired(
   if (!raw || typeof raw !== "object") return null;
 
   const capability = (raw as { capability?: unknown }).capability;
-  if (
-    capability !== "image_generation" &&
-    capability !== "video_generation"
-  ) {
+  if (capability !== "image_generation" && capability !== "video_generation") {
     return null;
   }
 
@@ -420,9 +417,7 @@ const MediaCapabilityRequiredCard = React.memo(
             />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">
-              {title}
-            </div>
+            <div className="text-sm font-semibold text-foreground">{title}</div>
             <div className="mt-0.5 text-[12px] text-muted-foreground">
               {description}
             </div>
@@ -550,9 +545,7 @@ const MediaErrorCard = React.memo(function MediaErrorCard({
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-foreground">
-            {title}
-          </div>
+          <div className="text-sm font-semibold text-foreground">{title}</div>
           <div className="mt-0.5 text-[12px] text-muted-foreground line-clamp-2">
             {error}
           </div>
@@ -579,6 +572,7 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
   hasDetails: boolean;
   onOpenPanel: () => void;
 }) {
+  const { t } = useAppTranslation("chat");
   const url = toRuntimeAssetUrl(artifact.url, artifact.assetId);
   const handleDownload = useCallback(
     (e: React.MouseEvent) => {
@@ -616,7 +610,7 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
             type="button"
             onClick={handleDownload}
             className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
-            title="\u4e0b\u8f7d\u56fe\u7247"
+            title={t("tool.downloadImage")}
           >
             <svg
               className="h-3.5 w-3.5"
@@ -643,7 +637,7 @@ const ImageArtifactCard = React.memo(function ImageArtifactCard({
             <>
               <span>&middot;</span>
               <span className="hover:text-foreground transition-colors">
-                查看详情
+                {t("tool.viewDetails")}
               </span>
             </>
           )}
@@ -697,6 +691,7 @@ function ToolDetailPanel({
   rightOffset: number;
   onClose: () => void;
 }) {
+  const { t } = useAppTranslation("chat");
   const [inputExpanded, setInputExpanded] = useState(false);
   const hasInput = block.input && Object.keys(block.input).length > 0;
   const config = getToolConfig(block.toolName);
@@ -775,7 +770,7 @@ function ToolDetailPanel({
                 >
                   <path d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 0 1-1.06-1.06L9.44 8 6.22 4.78a.75.75 0 0 1 0-1.06Z" />
                 </svg>
-                输入参数
+                {t("tool.inputParams")}
               </button>
               {inputExpanded && (
                 <div className="mt-2 space-y-1.5">
@@ -803,7 +798,7 @@ function ToolDetailPanel({
           ) : block.outputSummary ? (
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">
-                输出
+                {t("tool.output")}
               </div>
               <div className="rounded-lg bg-muted px-3 py-2.5 text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
                 {block.outputSummary}
@@ -815,7 +810,7 @@ function ToolDetailPanel({
           {block.artifacts && block.artifacts.length > 0 && (
             <div>
               <div className="text-xs font-medium text-muted-foreground mb-2">
-                附件
+                {t("tool.attachments")}
               </div>
               <div className="flex flex-wrap gap-2">
                 {block.artifacts.map((artifact) =>
@@ -857,6 +852,7 @@ function ToolOutputRenderer({
   toolName: string;
   output: Record<string, unknown>;
 }) {
+  const { t } = useAppTranslation("chat");
   if (toolName === "get_brand_kit" && isBrandKitOutput(output)) {
     return <BrandKitOutput data={output} />;
   }
@@ -874,7 +870,7 @@ function ToolOutputRenderer({
     return (
       <div>
         <div className="text-xs font-medium text-muted-foreground mb-2">
-          输出
+          {t("tool.output")}
         </div>
         <div className="space-y-2">
           {entries.map(([key, value]) => (
@@ -895,7 +891,9 @@ function ToolOutputRenderer({
   // Complex objects / arrays -- formatted JSON
   return (
     <div>
-      <div className="text-xs font-medium text-muted-foreground mb-2">输出</div>
+      <div className="text-xs font-medium text-muted-foreground mb-2">
+        {t("tool.output")}
+      </div>
       <div className="rounded-xl bg-muted px-4 py-3 overflow-x-auto max-h-[360px] overflow-y-auto">
         <pre className="text-[12px] leading-5 text-muted-foreground whitespace-pre-wrap break-all font-mono">
           {JSON.stringify(output, null, 2)}

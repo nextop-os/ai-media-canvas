@@ -157,5 +157,12 @@
   },
   "thinking": "Thinking",
   "thinkingCollapsed": "Thought for a moment",
-  "thinkingToggle": "Toggle thinking content"
+  "thinkingToggle": "Toggle thinking content",
+  "tool": {
+    "attachments": "Attachments",
+    "downloadImage": "Download image",
+    "inputParams": "Input parameters",
+    "output": "Output",
+    "viewDetails": "View details"
+  }
 }

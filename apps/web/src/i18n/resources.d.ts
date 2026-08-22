@@ -320,7 +320,14 @@ export default interface Resources {
     },
     "thinking": "思考中",
     "thinkingCollapsed": "已思考片刻",
-    "thinkingToggle": "展开或收起思考内容"
+    "thinkingToggle": "展开或收起思考内容",
+    "tool": {
+      "attachments": "附件",
+      "downloadImage": "下载图片",
+      "inputParams": "输入参数",
+      "output": "输出",
+      "viewDetails": "查看详情"
+    }
   },
   "common": {
     "actions": {
